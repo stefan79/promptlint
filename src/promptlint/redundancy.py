@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 import hdbscan
 import numpy as np
-from sklearn.metrics.pairwise import cosine_similarity  # type: ignore[import-untyped]
+from sklearn.metrics.pairwise import cosine_similarity
 
 from promptlint.models import ClassifiedChunk, RedundancyGroup
 

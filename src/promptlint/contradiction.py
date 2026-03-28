@@ -6,7 +6,7 @@ import re
 
 import numpy as np  # noqa: TC002
 import torch
-from sklearn.metrics.pairwise import cosine_similarity  # type: ignore[import-untyped]
+from sklearn.metrics.pairwise import cosine_similarity
 from transformers import AutoModelForSequenceClassification, AutoTokenizer  # noqa: TC002
 
 from promptlint.config import STOPWORDS, Config
