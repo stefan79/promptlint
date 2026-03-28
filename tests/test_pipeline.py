@@ -10,11 +10,7 @@ from promptlint.pipeline_config import parse_config_dict
 
 @pytest.mark.slow
 def test_pipeline_runner_default() -> None:
-    config = parse_config_dict({
-        "pipelines": {
-            "default": {"metrics": ["redundancy", "contradiction", "scorer"]}
-        }
-    })
+    config = parse_config_dict({"pipelines": {"default": {"metrics": ["redundancy", "contradiction", "scorer"]}}})
     runner = PipelineRunner(config)
     result = runner.run("default", "You must always respond in English. Never use profanity.")
 
@@ -24,11 +20,7 @@ def test_pipeline_runner_default() -> None:
 
 @pytest.mark.slow
 def test_pipeline_runner_scorer_only() -> None:
-    config = parse_config_dict({
-        "pipelines": {
-            "minimal": {"metrics": ["scorer"]}
-        }
-    })
+    config = parse_config_dict({"pipelines": {"minimal": {"metrics": ["scorer"]}}})
     runner = PipelineRunner(config)
     result = runner.run("minimal", "You must always respond in English. Never use profanity.")
 
@@ -40,20 +32,22 @@ def test_pipeline_runner_scorer_only() -> None:
 
 @pytest.mark.slow
 def test_pipeline_runner_with_variant() -> None:
-    config = parse_config_dict({
-        "stages": {
-            "strict-chunker": {
-                "base": "chunker",
-                "config": {"min_chunk_words": 3},
-            }
-        },
-        "pipelines": {
-            "strict": {
-                "preprocessing": {"chunker": "strict-chunker"},
-                "metrics": ["scorer"],
-            }
-        },
-    })
+    config = parse_config_dict(
+        {
+            "stages": {
+                "strict-chunker": {
+                    "base": "chunker",
+                    "config": {"min_chunk_words": 3},
+                }
+            },
+            "pipelines": {
+                "strict": {
+                    "preprocessing": {"chunker": "strict-chunker"},
+                    "metrics": ["scorer"],
+                }
+            },
+        }
+    )
     runner = PipelineRunner(config)
     result = runner.run("strict", "You must always respond in English. Never use profanity.")
 
@@ -62,11 +56,7 @@ def test_pipeline_runner_with_variant() -> None:
 
 @pytest.mark.slow
 def test_pipeline_runner_empty_input() -> None:
-    config = parse_config_dict({
-        "pipelines": {
-            "default": {"metrics": ["scorer"]}
-        }
-    })
+    config = parse_config_dict({"pipelines": {"default": {"metrics": ["scorer"]}}})
     runner = PipelineRunner(config)
     result = runner.run("default", "")
 
@@ -74,11 +64,7 @@ def test_pipeline_runner_empty_input() -> None:
 
 
 def test_pipeline_runner_unknown_pipeline() -> None:
-    config = parse_config_dict({
-        "pipelines": {
-            "default": {"metrics": ["scorer"]}
-        }
-    })
+    config = parse_config_dict({"pipelines": {"default": {"metrics": ["scorer"]}}})
     runner = PipelineRunner(config)
 
     with pytest.raises(ValueError, match="Unknown pipeline 'nonexistent'"):
@@ -87,11 +73,7 @@ def test_pipeline_runner_unknown_pipeline() -> None:
 
 @pytest.mark.slow
 def test_pipeline_runner_no_metrics() -> None:
-    config = parse_config_dict({
-        "pipelines": {
-            "empty": {"metrics": []}
-        }
-    })
+    config = parse_config_dict({"pipelines": {"empty": {"metrics": []}}})
     runner = PipelineRunner(config)
     result = runner.run("empty", "You must respond in English.")
 
@@ -103,11 +85,7 @@ def test_pipeline_runner_no_metrics() -> None:
 
 @pytest.mark.slow
 def test_pipeline_runner_redundancy_only() -> None:
-    config = parse_config_dict({
-        "pipelines": {
-            "redundancy-only": {"metrics": ["redundancy"]}
-        }
-    })
+    config = parse_config_dict({"pipelines": {"redundancy-only": {"metrics": ["redundancy"]}}})
     runner = PipelineRunner(config)
     result = runner.run(
         "redundancy-only",

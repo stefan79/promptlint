@@ -46,11 +46,7 @@ def test_parse_stage_variant_unknown_base() -> None:
 
 
 def test_parse_pipeline_default_metrics() -> None:
-    raw = {
-        "pipelines": {
-            "default": {"metrics": ["redundancy", "contradiction", "scorer"]}
-        }
-    }
+    raw = {"pipelines": {"default": {"metrics": ["redundancy", "contradiction", "scorer"]}}}
     config = parse_config_dict(raw)
     assert "default" in config.pipelines
     assert config.pipelines["default"].metrics == ["redundancy", "contradiction", "scorer"]
@@ -58,9 +54,7 @@ def test_parse_pipeline_default_metrics() -> None:
 
 def test_parse_pipeline_with_preprocessing_override() -> None:
     raw = {
-        "stages": {
-            "chunker-strict": {"base": "chunker", "config": {"min_chunk_words": 3}}
-        },
+        "stages": {"chunker-strict": {"base": "chunker", "config": {"min_chunk_words": 3}}},
         "pipelines": {
             "strict": {
                 "preprocessing": {"chunker": "chunker-strict"},
@@ -74,9 +68,7 @@ def test_parse_pipeline_with_preprocessing_override() -> None:
 
 def test_parse_pipeline_preprocessing_wrong_slot() -> None:
     raw = {
-        "stages": {
-            "chunker-strict": {"base": "chunker", "config": {}}
-        },
+        "stages": {"chunker-strict": {"base": "chunker", "config": {}}},
         "pipelines": {
             "bad": {
                 "preprocessing": {"classifier": "chunker-strict"},
@@ -89,11 +81,7 @@ def test_parse_pipeline_preprocessing_wrong_slot() -> None:
 
 
 def test_parse_pipeline_unknown_metric() -> None:
-    raw = {
-        "pipelines": {
-            "bad": {"metrics": ["nonexistent"]}
-        }
-    }
+    raw = {"pipelines": {"bad": {"metrics": ["nonexistent"]}}}
     with pytest.raises(ValueError, match="Unknown metric stage 'nonexistent'"):
         parse_config_dict(raw)
 
@@ -106,9 +94,7 @@ def test_parse_pipeline_with_variant_metric() -> None:
                 "config": {"min_instructions": 10},
             }
         },
-        "pipelines": {
-            "smart": {"metrics": ["redundancy", "skip-contradiction-short", "scorer"]}
-        },
+        "pipelines": {"smart": {"metrics": ["redundancy", "skip-contradiction-short", "scorer"]}},
     }
     config = parse_config_dict(raw)
     assert "skip-contradiction-short" in config.pipelines["smart"].metrics
@@ -194,20 +180,12 @@ def test_load_config_from_file(tmp_path: object) -> None:
     import pathlib
 
     p = pathlib.Path(str(tmp_path)) / "test.yaml"
-    p.write_text(
-        "pipelines:\n"
-        "  default:\n"
-        "    metrics: [scorer]\n"
-    )
+    p.write_text("pipelines:\n  default:\n    metrics: [scorer]\n")
     config = load_config(p)
     assert "default" in config.pipelines
 
 
 def test_stage_variant_no_config() -> None:
-    raw = {
-        "stages": {
-            "chunker-v2": {"base": "chunker"}
-        }
-    }
+    raw = {"stages": {"chunker-v2": {"base": "chunker"}}}
     config = parse_config_dict(raw)
     assert config.stages["chunker-v2"].config == {}
