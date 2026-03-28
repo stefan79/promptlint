@@ -182,7 +182,7 @@ def _split_xml(text: str, source_section: str, original_text: str) -> list[tuple
     return segments if segments else None
 
 
-def _split_non_xml(text: str, source_section: str, base_offset: int, original_text: str) -> list[Chunk]:
+def _split_non_xml(text: str, source_section: str, base_offset: int, _original_text: str) -> list[Chunk]:
     """Split text using markdown headers, bullets, paragraphs, and semicolons."""
     # Step 1: Split on markdown headers
     header_segments = _split_markdown_headers(text, source_section, base_offset)

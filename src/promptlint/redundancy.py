@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from typing import TYPE_CHECKING
 
 import hdbscan
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 
-from promptlint.config import Config
 from promptlint.models import ClassifiedChunk, RedundancyGroup
+
+if TYPE_CHECKING:
+    from promptlint.config import Config
 
 
 class RedundancyDetector:

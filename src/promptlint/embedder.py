@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 from sentence_transformers import SentenceTransformer
 
-from promptlint.config import Config
-from promptlint.models import ClassifiedChunk
+if TYPE_CHECKING:
+    from promptlint.config import Config
+    from promptlint.models import ClassifiedChunk
 
 
 class InstructionEmbedder:

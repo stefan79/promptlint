@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import torch
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 from promptlint.config import INSTRUCTION_HYPOTHESES, Config
 from promptlint.models import Chunk, ClassifiedChunk
+
+if TYPE_CHECKING:
+    from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 
 class InstructionClassifier:
@@ -71,6 +75,4 @@ class InstructionClassifier:
             outputs = self.model(**inputs)
             # DeBERTa MNLI: [contradiction, neutral, entailment]
             probs = torch.softmax(outputs.logits, dim=-1)
-            entailment_scores = probs[:, 2].cpu().tolist()
-
-        return entailment_scores
+        return probs[:, 2].cpu().tolist()

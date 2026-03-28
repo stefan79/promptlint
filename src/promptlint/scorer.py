@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from typing import TYPE_CHECKING
 
 import tiktoken
 
-from promptlint.config import Config
 from promptlint.models import AnalysisResult, ClassifiedChunk, Contradiction, RedundancyGroup
+
+if TYPE_CHECKING:
+    from promptlint.config import Config
 
 
 def score(

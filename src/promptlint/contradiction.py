@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import re
+from typing import TYPE_CHECKING
 
-import numpy as np
 import torch
 from sklearn.metrics.pairwise import cosine_similarity
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 from promptlint.config import STOPWORDS, Config
 from promptlint.models import ClassifiedChunk, Contradiction, RedundancyGroup
+
+if TYPE_CHECKING:
+    import numpy as np
+    from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 
 class ContradictionDetector:
@@ -166,6 +169,4 @@ class ContradictionDetector:
             outputs = self.model(**inputs)
             # DeBERTa MNLI: [contradiction=0, neutral=1, entailment=2]
             probs = torch.softmax(outputs.logits, dim=-1)
-            contradiction_scores = probs[:, 0].cpu().tolist()
-
-        return contradiction_scores
+        return probs[:, 0].cpu().tolist()

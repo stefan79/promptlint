@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from promptlint.chunker import chunk
-from promptlint.config import Config
-from promptlint.models import Chunk
+
+if TYPE_CHECKING:
+    from promptlint.config import Config
+    from promptlint.models import Chunk
 
 
 def parse_raw(text: str, config: Config | None = None) -> list[Chunk]:
@@ -63,10 +66,7 @@ def parse_files(
     if claude_md:
         claude_text = Path(claude_md).read_text()
         # Treat CLAUDE.md as a system prompt section if no system_prompt given
-        if system_text is None:
-            system_text = claude_text
-        else:
-            system_text = claude_text + "\n\n" + system_text
+        system_text = claude_text if system_text is None else claude_text + "\n\n" + system_text
 
     if skill_dirs:
         for skill_dir in skill_dirs:
