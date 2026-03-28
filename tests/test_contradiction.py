@@ -8,8 +8,13 @@ from promptlint.models import ClassifiedChunk
 
 def _make_instruction(text: str, confidence: float = 0.9) -> ClassifiedChunk:
     return ClassifiedChunk(
-        text=text, source_section="test", start_offset=0, end_offset=len(text),
-        structural_type="bullet", label="instruction", confidence=confidence,
+        text=text,
+        source_section="test",
+        start_offset=0,
+        end_offset=len(text),
+        structural_type="bullet",
+        label="instruction",
+        confidence=confidence,
     )
 
 
@@ -17,6 +22,7 @@ def _make_instruction(text: str, confidence: float = 0.9) -> ClassifiedChunk:
 def pipeline():
     """Load models once for all contradiction tests."""
     from transformers import AutoModelForSequenceClassification, AutoTokenizer
+
     from promptlint.contradiction import ContradictionDetector
     from promptlint.embedder import InstructionEmbedder
 
@@ -63,4 +69,5 @@ def test_non_contradiction_not_flagged(pipeline):
 def test_empty_input(pipeline):
     """No instructions returns no contradictions."""
     import numpy as np
+
     assert pipeline["detector"].detect([], np.empty((0, 384)), []) == []

@@ -9,6 +9,7 @@ from promptlint.models import Chunk
 @pytest.fixture(scope="session")
 def classifier():
     from transformers import AutoModelForSequenceClassification, AutoTokenizer
+
     from promptlint.classifier import InstructionClassifier
 
     config = Config()

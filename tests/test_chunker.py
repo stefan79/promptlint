@@ -1,7 +1,6 @@
 """Tests for Stage 1: Chunker."""
 
 from promptlint.chunker import chunk
-from promptlint.config import Config
 
 
 def test_no_conjunction_splitting():

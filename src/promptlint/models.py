@@ -71,12 +71,12 @@ class AnalysisResult:
 
     def to_markdown(self) -> str:
         lines = [
-            f"# Promptlint Analysis Report",
+            "# Promptlint Analysis Report",
             "",
             f"**Severity:** {self.severity.upper()}",
             "",
-            f"| Metric | Value |",
-            f"|--------|-------|",
+            "| Metric | Value |",
+            "|--------|-------|",
             f"| Instructions (total) | {self.instruction_count} |",
             f"| Instructions (unique) | {self.unique_instruction_count} |",
             f"| Redundancy ratio | {self.redundancy_ratio:.1%} |",
@@ -107,12 +107,8 @@ class AnalysisResult:
             lines.append("## Contradictions")
             lines.append("")
             for i, c in enumerate(self.contradictions, 1):
-                lines.append(
-                    f'{i}. [{c.score:.2f}] "{c.instruction_a.text}" ↔ "{c.instruction_b.text}"'
-                )
-                lines.append(
-                    f"   {c.instruction_a.source_section} ↔ {c.instruction_b.source_section}"
-                )
+                lines.append(f'{i}. [{c.score:.2f}] "{c.instruction_a.text}" ↔ "{c.instruction_b.text}"')
+                lines.append(f"   {c.instruction_a.source_section} ↔ {c.instruction_b.source_section}")
             lines.append("")
 
         if self.warnings:

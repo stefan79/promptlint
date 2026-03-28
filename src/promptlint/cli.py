@@ -61,6 +61,7 @@ def _add_common_args(parser: argparse.ArgumentParser) -> None:
 
 def _build_analyzer(args: argparse.Namespace):
     from promptlint import PromptAnalyzer
+
     return PromptAnalyzer(
         warn_instructions=args.warn_instructions,
         critical_instructions=args.critical_instructions,
@@ -123,9 +124,22 @@ def _cmd_diff(args: argparse.Namespace) -> None:
 
     if args.format == "json":
         import json
+
         diff = {
-            "old": {"instruction_count": old_result.instruction_count, "unique": old_result.unique_instruction_count, "density": old_result.density, "contradictions": len(old_result.contradictions), "severity": old_result.severity},
-            "new": {"instruction_count": new_result.instruction_count, "unique": new_result.unique_instruction_count, "density": new_result.density, "contradictions": len(new_result.contradictions), "severity": new_result.severity},
+            "old": {
+                "instruction_count": old_result.instruction_count,
+                "unique": old_result.unique_instruction_count,
+                "density": old_result.density,
+                "contradictions": len(old_result.contradictions),
+                "severity": old_result.severity,
+            },
+            "new": {
+                "instruction_count": new_result.instruction_count,
+                "unique": new_result.unique_instruction_count,
+                "density": new_result.density,
+                "contradictions": len(new_result.contradictions),
+                "severity": new_result.severity,
+            },
             "delta": {
                 "instruction_count": new_result.instruction_count - old_result.instruction_count,
                 "unique": new_result.unique_instruction_count - old_result.unique_instruction_count,
@@ -139,8 +153,9 @@ def _cmd_diff(args: argparse.Namespace) -> None:
 
 
 def _cmd_proxy(args: argparse.Namespace) -> None:
-    from promptlint.proxy import create_app
     import uvicorn
+
+    from promptlint.proxy import create_app
 
     app = create_app(
         target=args.target,
@@ -173,7 +188,7 @@ def _print_terminal(result) -> None:
     severity_icon = {"ok": "✅", "warning": "⚠️ ", "critical": "🚨"}
     icon = severity_icon.get(result.severity, "")
 
-    print(f"promptlint v1.0 — Analysis Report")
+    print("promptlint v1.0 — Analysis Report")
     print("=" * 38)
     print()
     print(f"Severity: {icon} {result.severity.upper()}")
@@ -182,9 +197,11 @@ def _print_terminal(result) -> None:
 
     total_dups = result.instruction_count - result.unique_instruction_count
     if total_dups > 0:
-        print(f"Redundancy:       {total_dups} redundant ({result.redundancy_ratio:.1%}) across {len(result.redundant_groups)} groups")
+        print(
+            f"Redundancy:       {total_dups} redundant ({result.redundancy_ratio:.1%}) across {len(result.redundant_groups)} groups"
+        )
     else:
-        print(f"Redundancy:       none detected")
+        print("Redundancy:       none detected")
 
     print(f"Contradictions:   {len(result.contradictions)} pairs detected")
     print(f"Density:          {result.density:.1f} instructions / 1K tokens")
@@ -229,10 +246,18 @@ def _print_diff_terminal(old, new) -> None:
     print()
     print(f"{'Metric':<25s} {'Old':>8s} {'New':>8s} {'Delta':>8s}")
     print("-" * 52)
-    print(f"{'Instructions':<25s} {old.instruction_count:>8d} {new.instruction_count:>8d} {_delta(old.instruction_count, new.instruction_count):>8s}")
-    print(f"{'Unique instructions':<25s} {old.unique_instruction_count:>8d} {new.unique_instruction_count:>8d} {_delta(old.unique_instruction_count, new.unique_instruction_count):>8s}")
-    print(f"{'Density':<25s} {old.density:>8.1f} {new.density:>8.1f} {_delta(round(old.density, 1), round(new.density, 1)):>8s}")
-    print(f"{'Contradictions':<25s} {len(old.contradictions):>8d} {len(new.contradictions):>8d} {_delta(len(old.contradictions), len(new.contradictions)):>8s}")
+    print(
+        f"{'Instructions':<25s} {old.instruction_count:>8d} {new.instruction_count:>8d} {_delta(old.instruction_count, new.instruction_count):>8s}"
+    )
+    print(
+        f"{'Unique instructions':<25s} {old.unique_instruction_count:>8d} {new.unique_instruction_count:>8d} {_delta(old.unique_instruction_count, new.unique_instruction_count):>8s}"
+    )
+    print(
+        f"{'Density':<25s} {old.density:>8.1f} {new.density:>8.1f} {_delta(round(old.density, 1), round(new.density, 1)):>8s}"
+    )
+    print(
+        f"{'Contradictions':<25s} {len(old.contradictions):>8d} {len(new.contradictions):>8d} {_delta(len(old.contradictions), len(new.contradictions)):>8s}"
+    )
     print(f"{'Severity':<25s} {old.severity:>8s} {new.severity:>8s}")
     print()
 

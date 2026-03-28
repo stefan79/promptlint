@@ -39,15 +39,17 @@ class InstructionClassifier:
             chunk_scores = scores[i * 3 : (i + 1) * 3]
             max_score = max(chunk_scores)
             label = "instruction" if max_score > self.config.classification_threshold else "non_instruction"
-            results.append(ClassifiedChunk(
-                text=c.text,
-                source_section=c.source_section,
-                start_offset=c.start_offset,
-                end_offset=c.end_offset,
-                structural_type=c.structural_type,
-                label=label,
-                confidence=max_score,
-            ))
+            results.append(
+                ClassifiedChunk(
+                    text=c.text,
+                    source_section=c.source_section,
+                    start_offset=c.start_offset,
+                    end_offset=c.end_offset,
+                    structural_type=c.structural_type,
+                    label=label,
+                    confidence=max_score,
+                )
+            )
 
         return results
 

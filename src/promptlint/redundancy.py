@@ -25,12 +25,9 @@ class RedundancyDetector:
 
         if n < self.config.small_dataset_threshold:
             return self._pairwise_grouping(instructions, embeddings)
-        else:
-            return self._hdbscan_grouping(instructions, embeddings)
+        return self._hdbscan_grouping(instructions, embeddings)
 
-    def _hdbscan_grouping(
-        self, instructions: list[ClassifiedChunk], embeddings: np.ndarray
-    ) -> list[RedundancyGroup]:
+    def _hdbscan_grouping(self, instructions: list[ClassifiedChunk], embeddings: np.ndarray) -> list[RedundancyGroup]:
         clusterer = hdbscan.HDBSCAN(
             min_cluster_size=self.config.hdbscan_min_cluster_size,
             min_samples=self.config.hdbscan_min_samples,
@@ -48,9 +45,7 @@ class RedundancyDetector:
         sim_matrix = cosine_similarity(embeddings)
         return self._build_groups(instructions, clusters, sim_matrix)
 
-    def _pairwise_grouping(
-        self, instructions: list[ClassifiedChunk], embeddings: np.ndarray
-    ) -> list[RedundancyGroup]:
+    def _pairwise_grouping(self, instructions: list[ClassifiedChunk], embeddings: np.ndarray) -> list[RedundancyGroup]:
         sim_matrix = cosine_similarity(embeddings)
         n = len(instructions)
 
@@ -110,11 +105,13 @@ class RedundancyDetector:
                     sims.append(sim_matrix[group_indices[i_idx], group_indices[j_idx]])
             mean_sim = float(np.mean(sims)) if sims else 0.0
 
-            groups.append(RedundancyGroup(
-                canonical=canonical,
-                duplicates=duplicates,
-                similarity=mean_sim,
-            ))
+            groups.append(
+                RedundancyGroup(
+                    canonical=canonical,
+                    duplicates=duplicates,
+                    similarity=mean_sim,
+                )
+            )
 
         # Sort by group size descending
         groups.sort(key=lambda g: len(g.duplicates), reverse=True)

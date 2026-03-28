@@ -83,7 +83,7 @@ def _compute_severity(
         severity = "critical"
         warnings.append(
             f"Instruction count ({instruction_count}) exceeds critical threshold ({config.critical_instructions}). "
-            f"At 95% per-instruction accuracy, P(all followed) ≈ {0.95 ** instruction_count:.6f}."
+            f"At 95% per-instruction accuracy, P(all followed) ≈ {0.95**instruction_count:.6f}."
         )
     elif instruction_count >= config.warn_instructions:
         severity = max(severity, "warning", key=lambda s: {"ok": 0, "warning": 1, "critical": 2}[s])
@@ -94,15 +94,21 @@ def _compute_severity(
     # Density
     if density > config.critical_density:
         severity = "critical"
-        warnings.append(f"Instruction density ({density:.1f}/1K tokens) exceeds critical threshold ({config.critical_density}).")
+        warnings.append(
+            f"Instruction density ({density:.1f}/1K tokens) exceeds critical threshold ({config.critical_density})."
+        )
     elif density >= config.warn_density:
         severity = max(severity, "warning", key=lambda s: {"ok": 0, "warning": 1, "critical": 2}[s])
-        warnings.append(f"Instruction density ({density:.1f}/1K tokens) exceeds warning threshold ({config.warn_density}).")
+        warnings.append(
+            f"Instruction density ({density:.1f}/1K tokens) exceeds warning threshold ({config.warn_density})."
+        )
 
     # Contradictions
     if contradiction_count > config.critical_contradictions:
         severity = "critical"
-        warnings.append(f"Found {contradiction_count} contradictions (critical threshold: {config.critical_contradictions}).")
+        warnings.append(
+            f"Found {contradiction_count} contradictions (critical threshold: {config.critical_contradictions})."
+        )
     elif contradiction_count >= config.warn_contradictions:
         severity = max(severity, "warning", key=lambda s: {"ok": 0, "warning": 1, "critical": 2}[s])
         warnings.append(f"Found {contradiction_count} contradiction(s).")

@@ -100,9 +100,7 @@ class ContradictionDetector:
         words = re.findall(r"[a-zA-Z]+", text.lower())
         return {w for w in words if w not in STOPWORDS and len(w) > 2}
 
-    def _score_pairs(
-        self, instructions: list[ClassifiedChunk], pairs: list[tuple[int, int]]
-    ) -> list[Contradiction]:
+    def _score_pairs(self, instructions: list[ClassifiedChunk], pairs: list[tuple[int, int]]) -> list[Contradiction]:
         """Run bidirectional NLI on candidate pairs."""
         # Build forward and reverse pairs
         premises: list[str] = []
@@ -137,12 +135,14 @@ class ContradictionDetector:
                 else:
                     direction = "b_contradicts_a"
 
-                contradictions.append(Contradiction(
-                    instruction_a=instructions[i],
-                    instruction_b=instructions[j],
-                    score=max_score,
-                    direction=direction,
-                ))
+                contradictions.append(
+                    Contradiction(
+                        instruction_a=instructions[i],
+                        instruction_b=instructions[j],
+                        score=max_score,
+                        direction=direction,
+                    )
+                )
 
         # Sort by score descending
         contradictions.sort(key=lambda c: c.score, reverse=True)

@@ -13,7 +13,7 @@ from promptlint.prompt_parser import parse_files, parse_raw, parse_structured
 from promptlint.redundancy import RedundancyDetector
 from promptlint.scorer import score
 
-__all__ = ["PromptAnalyzer", "AnalysisResult", "PromptLintError", "Config"]
+__all__ = ["AnalysisResult", "Config", "PromptAnalyzer", "PromptLintError"]
 
 
 class PromptAnalyzer:
@@ -33,9 +33,7 @@ class PromptAnalyzer:
         self.classifier = InstructionClassifier(self.config, self._nli_model, self._nli_tokenizer)
         self.embedder = InstructionEmbedder(self.config)
         self.redundancy_detector = RedundancyDetector(self.config)
-        self.contradiction_detector = ContradictionDetector(
-            self.config, self._nli_model, self._nli_tokenizer
-        )
+        self.contradiction_detector = ContradictionDetector(self.config, self._nli_model, self._nli_tokenizer)
 
     def analyze(
         self,
@@ -85,7 +83,9 @@ class PromptAnalyzer:
         contradictions = self.contradiction_detector.detect(instructions, embeddings, redundancy_groups)
 
         # Stage 6: Score
-        return score(instructions, non_instructions, redundancy_groups, contradictions, classified, original_text, self.config)
+        return score(
+            instructions, non_instructions, redundancy_groups, contradictions, classified, original_text, self.config
+        )
 
     def analyze_files(
         self,
@@ -94,9 +94,12 @@ class PromptAnalyzer:
         system_prompt: str | None = None,
     ) -> AnalysisResult:
         """Run analysis on prompt files from disk."""
-        chunks = parse_files(claude_md=claude_md, skill_dirs=skill_dirs, system_prompt=system_prompt, config=self.config)
+        chunks = parse_files(
+            claude_md=claude_md, skill_dirs=skill_dirs, system_prompt=system_prompt, config=self.config
+        )
         # Read original text for token counting
         from pathlib import Path
+
         parts = []
         if claude_md:
             parts.append(Path(claude_md).read_text())
@@ -118,4 +121,6 @@ class PromptAnalyzer:
         redundancy_groups = self.redundancy_detector.detect(instructions, embeddings)
         contradictions = self.contradiction_detector.detect(instructions, embeddings, redundancy_groups)
 
-        return score(instructions, non_instructions, redundancy_groups, contradictions, classified, original_text, self.config)
+        return score(
+            instructions, non_instructions, redundancy_groups, contradictions, classified, original_text, self.config
+        )

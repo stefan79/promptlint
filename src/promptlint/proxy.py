@@ -113,17 +113,16 @@ def create_app(
                     headers=dict(response.headers),
                     media_type=response.headers.get("content-type", "text/event-stream"),
                 )
-            else:
-                response = await client.post(
-                    f"{target}/v1/messages",
-                    headers=headers,
-                    content=body_bytes,
-                )
-                return JSONResponse(
-                    status_code=response.status_code,
-                    content=response.json(),
-                    headers=_analysis_headers(result),
-                )
+            response = await client.post(
+                f"{target}/v1/messages",
+                headers=headers,
+                content=body_bytes,
+            )
+            return JSONResponse(
+                status_code=response.status_code,
+                content=response.json(),
+                headers=_analysis_headers(result),
+            )
 
     # Pass through all other routes
     @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
@@ -141,7 +140,9 @@ def create_app(
             )
             return JSONResponse(
                 status_code=response.status_code,
-                content=response.json() if response.headers.get("content-type", "").startswith("application/json") else {"raw": response.text},
+                content=response.json()
+                if response.headers.get("content-type", "").startswith("application/json")
+                else {"raw": response.text},
             )
 
     return app

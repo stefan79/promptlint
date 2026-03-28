@@ -53,17 +53,19 @@ def _extract_tool_definitions(text: str, source_section: str) -> tuple[list[Chun
                             start = text.find(desc, match.start())
                             if start == -1:
                                 start = match.start()
-                            chunks.append(Chunk(
-                                text=desc,
-                                source_section=f"{source_section}/tool:{tool.get('name', 'unknown')}",
-                                start_offset=start,
-                                end_offset=start + len(desc),
-                                structural_type="tool_desc",
-                            ))
+                            chunks.append(
+                                Chunk(
+                                    text=desc,
+                                    source_section=f"{source_section}/tool:{tool.get('name', 'unknown')}",
+                                    start_offset=start,
+                                    end_offset=start + len(desc),
+                                    structural_type="tool_desc",
+                                )
+                            )
                         # Extract parameter-level descriptions with behavioral directives
                         _extract_param_descriptions(tool, source_section, text, match.start(), chunks)
                 # Remove the matched tool block from text to avoid double-processing
-                remaining = remaining[:match.start()] + " " * len(match.group()) + remaining[match.end():]
+                remaining = remaining[: match.start()] + " " * len(match.group()) + remaining[match.end() :]
         except (json.JSONDecodeError, TypeError):
             continue
 
@@ -89,13 +91,15 @@ def _extract_param_descriptions(
             start = text.find(desc, base_offset)
             if start == -1:
                 start = base_offset
-            chunks.append(Chunk(
-                text=desc,
-                source_section=f"{source_section}/tool:{tool_name}/param:{param_name}",
-                start_offset=start,
-                end_offset=start + len(desc),
-                structural_type="tool_desc",
-            ))
+            chunks.append(
+                Chunk(
+                    text=desc,
+                    source_section=f"{source_section}/tool:{tool_name}/param:{param_name}",
+                    start_offset=start,
+                    end_offset=start + len(desc),
+                    structural_type="tool_desc",
+                )
+            )
 
 
 def _has_directive_language(text: str) -> bool:
@@ -127,9 +131,7 @@ def _split_structural(text: str, source_section: str, original_text: str) -> lis
     return _split_non_xml(text, source_section, base_offset, original_text)
 
 
-def _split_xml(
-    text: str, source_section: str, original_text: str
-) -> list[tuple[str, str, int, str]] | None:
+def _split_xml(text: str, source_section: str, original_text: str) -> list[tuple[str, str, int, str]] | None:
     """Split on XML tags. Returns None if no XML structure found."""
     open_tags = list(_XML_TAG_OPEN.finditer(text))
     close_tags = list(_XML_TAG_CLOSE.finditer(text))
@@ -202,9 +204,7 @@ def _split_non_xml(text: str, source_section: str, base_offset: int, original_te
     return result
 
 
-def _split_markdown_headers(
-    text: str, source_section: str, base_offset: int
-) -> list[tuple[str, str, int, str]]:
+def _split_markdown_headers(text: str, source_section: str, base_offset: int) -> list[tuple[str, str, int, str]]:
     """Split on markdown headers."""
     matches = list(_MARKDOWN_HEADER.finditer(text))
     if not matches:
@@ -217,7 +217,7 @@ def _split_markdown_headers(
 
     # Text before first header
     if matches[0].start() > 0:
-        before = text[:matches[0].start()].strip()
+        before = text[: matches[0].start()].strip()
         if before:
             segments.append((before, source_section, base_offset, "paragraph"))
 
@@ -248,7 +248,7 @@ def _split_bullets(
 
     # Text before first bullet
     if matches[0].start() > 0:
-        before = text[:matches[0].start()].strip()
+        before = text[: matches[0].start()].strip()
         if before:
             segments.append((before, source_section, base_offset, structural_type))
 
@@ -288,21 +288,21 @@ def _split_paragraphs(
     return segments
 
 
-def _split_semicolons(
-    text: str, source_section: str, base_offset: int, structural_type: str
-) -> list[Chunk]:
+def _split_semicolons(text: str, source_section: str, base_offset: int, structural_type: str) -> list[Chunk]:
     """Split on semicolons unconditionally."""
     parts = text.split(";")
     if len(parts) <= 1:
         stripped = text.strip()
         if stripped:
-            return [Chunk(
-                text=stripped,
-                source_section=source_section,
-                start_offset=base_offset,
-                end_offset=base_offset + len(text),
-                structural_type=structural_type,
-            )]
+            return [
+                Chunk(
+                    text=stripped,
+                    source_section=source_section,
+                    start_offset=base_offset,
+                    end_offset=base_offset + len(text),
+                    structural_type=structural_type,
+                )
+            ]
         return []
 
     chunks: list[Chunk] = []
@@ -313,13 +313,15 @@ def _split_semicolons(
             idx = text.find(part, pos)
             if idx == -1:
                 idx = pos
-            chunks.append(Chunk(
-                text=stripped,
-                source_section=source_section,
-                start_offset=base_offset + idx,
-                end_offset=base_offset + idx + len(part.rstrip()),
-                structural_type=structural_type,
-            ))
+            chunks.append(
+                Chunk(
+                    text=stripped,
+                    source_section=source_section,
+                    start_offset=base_offset + idx,
+                    end_offset=base_offset + idx + len(part.rstrip()),
+                    structural_type=structural_type,
+                )
+            )
             pos = idx + len(part)
 
     return chunks

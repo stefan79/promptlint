@@ -1,7 +1,8 @@
 """End-to-end integration tests on fixture prompts."""
 
-import pytest
 from pathlib import Path
+
+import pytest
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -9,6 +10,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 @pytest.fixture(scope="session")
 def analyzer():
     from promptlint import PromptAnalyzer
+
     return PromptAnalyzer()
 
 

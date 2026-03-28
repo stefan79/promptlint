@@ -7,15 +7,25 @@ from promptlint.scorer import score
 
 def _make_instruction(text: str, section: str = "test") -> ClassifiedChunk:
     return ClassifiedChunk(
-        text=text, source_section=section, start_offset=0, end_offset=len(text),
-        structural_type="bullet", label="instruction", confidence=0.9,
+        text=text,
+        source_section=section,
+        start_offset=0,
+        end_offset=len(text),
+        structural_type="bullet",
+        label="instruction",
+        confidence=0.9,
     )
 
 
 def _make_non_instruction(text: str) -> ClassifiedChunk:
     return ClassifiedChunk(
-        text=text, source_section="test", start_offset=0, end_offset=len(text),
-        structural_type="paragraph", label="non_instruction", confidence=0.8,
+        text=text,
+        source_section="test",
+        start_offset=0,
+        end_offset=len(text),
+        structural_type="paragraph",
+        label="non_instruction",
+        confidence=0.8,
     )
 
 

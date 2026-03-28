@@ -10,8 +10,13 @@ from promptlint.redundancy import RedundancyDetector
 
 def _make_instruction(text: str, confidence: float = 0.9) -> ClassifiedChunk:
     return ClassifiedChunk(
-        text=text, source_section="test", start_offset=0, end_offset=len(text),
-        structural_type="bullet", label="instruction", confidence=confidence,
+        text=text,
+        source_section="test",
+        start_offset=0,
+        end_offset=len(text),
+        structural_type="bullet",
+        label="instruction",
+        confidence=confidence,
     )
 
 
@@ -23,6 +28,7 @@ def detector():
 @pytest.fixture(scope="session")
 def embedder():
     from promptlint.embedder import InstructionEmbedder
+
     return InstructionEmbedder(Config())
 
 
