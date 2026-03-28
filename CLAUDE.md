@@ -19,11 +19,14 @@ NLP, no LLM calls).
 ┌─────────────────┐   ┌──────────────────────┐   ┌──────────────────────┐
 │ Gateway Listener │   │   Pipeline Runner    │   │      Emitters        │
 │                  │   │                      │   │                      │
-│ - Built-in proxy │   │ YAML-defined stages: │   │ - JSONL (local)      │
-│ - Nginx sidecar  │──▶│ chunk → classify →   │──▶│ - Elasticsearch      │
-│ - SDK middleware  │   │ embed → redundancy → │   │ - Prometheus         │
-│ - LLM gateway    │   │ contradict → score   │   │ - SQLite             │
-│   plugin         │   │                      │   │ - Webhook            │
+│ - Built-in proxy │   │ Two-phase pipeline:  │   │ - JSONL (local)      │
+│ - Nginx sidecar  │──▶│ 1. Preprocessing:    │──▶│ - Elasticsearch      │
+│ - SDK middleware  │   │    chunk→classify→   │   │ - Prometheus         │
+│ - LLM gateway    │   │    embed             │   │ - SQLite             │
+│   plugin         │   │ 2. Metrics (parallel):│   │ - Webhook            │
+│                  │   │    redundancy,        │   │                      │
+│                  │   │    contradiction,     │   │                      │
+│                  │   │    scorer             │   │                      │
 └────────┬─────────┘   └──────────┬───────────┘   └──────────▲───────────┘
          │                        │                           │
          │ captures               │ produces                  │ writes
@@ -91,7 +94,7 @@ Two observation modes:
 | # | Spec | Status |
 |---|------|--------|
 | 01 | [Core Pipeline](specs/01-core-pipeline.md) | ~95% implemented |
-| 02 | [Pipeline DSL](specs/02-pipeline-dsl.md) | Draft |
+| 02 | [Pipeline DSL](specs/02-pipeline-dsl.md) | Ready for implementation |
 | 03 | [Storage Backends](specs/03-storage-backends.md) | Draft |
 | 04 | [Gateway Integration](specs/04-gateway-integration.md) | Draft |
 | 05 | [Orchestrator Support (Passive)](specs/05-orchestrator-support.md) | Draft |
