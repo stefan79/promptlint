@@ -20,6 +20,7 @@ dependencies = [
     "fastapi",
     "uvicorn",
     "httpx",
+    "pyyaml",
 ]
 
 [project.optional-dependencies]
@@ -87,6 +88,7 @@ module = [
     "tiktoken.*",
     "torch.*",
     "sklearn.*",
+    "yaml.*",
 ]
 ignore_missing_imports = true
 

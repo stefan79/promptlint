@@ -34,6 +34,19 @@ def main() -> None:
     diff_parser.add_argument("new", help="New prompt file.")
     diff_parser.add_argument("--format", choices=["terminal", "json"], default="terminal")
 
+    # pipeline command
+    pipeline_parser = subparsers.add_parser("pipeline", help="Run a named pipeline from a YAML config.")
+    pipeline_parser.add_argument("file", help="Prompt file to analyze.")
+    pipeline_parser.add_argument("--config", required=True, help="Path to pipeline YAML config.")
+    pipeline_parser.add_argument("--pipeline", required=True, help="Name of the pipeline to run.")
+    pipeline_parser.add_argument("--format", choices=["terminal", "json", "markdown"], default="terminal")
+
+    # benchmark command
+    benchmark_parser = subparsers.add_parser("benchmark", help="Run a benchmark comparing pipelines.")
+    benchmark_parser.add_argument("--config", required=True, help="Path to pipeline YAML config.")
+    benchmark_parser.add_argument("--benchmark", required=True, help="Name of the benchmark to run.")
+    benchmark_parser.add_argument("--output", help="Path to write JSON results (default: stdout).")
+
     # proxy command
     proxy_parser = subparsers.add_parser("proxy", help="Start reverse proxy for live analysis.")
     proxy_parser.add_argument("--port", type=int, default=8100)
@@ -49,6 +62,10 @@ def main() -> None:
         _cmd_check(args)
     elif args.command == "diff":
         _cmd_diff(args)
+    elif args.command == "pipeline":
+        _cmd_pipeline(args)
+    elif args.command == "benchmark":
+        _cmd_benchmark(args)
     elif args.command == "proxy":
         _cmd_proxy(args)
 
@@ -155,6 +172,43 @@ def _cmd_diff(args: argparse.Namespace) -> None:
         print(json.dumps(diff, indent=2))
     else:
         _print_diff_terminal(old_result, new_result)
+
+
+def _cmd_pipeline(args: argparse.Namespace) -> None:
+    from promptlint.pipeline import PipelineRunner
+    from promptlint.pipeline_config import load_config
+
+    config = load_config(args.config)
+    runner = PipelineRunner(config)
+
+    with open(args.file) as f:
+        text = f.read()
+
+    result = runner.run(args.pipeline, text)
+    _print_result(result, args.format)
+
+
+def _cmd_benchmark(args: argparse.Namespace) -> None:
+    from promptlint.benchmark import run_benchmark
+    from promptlint.pipeline import PipelineRunner
+    from promptlint.pipeline_config import load_config
+
+    config = load_config(args.config)
+    runner = PipelineRunner(config)
+
+    benchmark_name = args.benchmark
+    if benchmark_name not in config.benchmarks:
+        print(f"Error: unknown benchmark '{benchmark_name}'. Available: {list(config.benchmarks)}", file=sys.stderr)
+        sys.exit(1)
+
+    benchmark_def = config.benchmarks[benchmark_name]
+    result = run_benchmark(benchmark_def, config, runner)
+
+    if args.output:
+        result.save(args.output)
+        print(f"Benchmark results written to {args.output}")
+    else:
+        print(result.to_json())
 
 
 def _cmd_proxy(args: argparse.Namespace) -> None:
