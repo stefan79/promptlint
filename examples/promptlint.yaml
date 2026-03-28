@@ -1,0 +1,46 @@
+stages:
+  # Stricter chunker: requires 3+ words per chunk
+  chunker-strict:
+    base: chunker
+    config:
+      min_chunk_words: 3
+
+  # Faster classifier with lower threshold
+  fast-classifier:
+    base: classifier
+    config:
+      classification_threshold: 0.70
+
+  # Skip contradiction NLI for short prompts
+  skip-contradiction-short:
+    base: contradiction
+    config:
+      min_instructions: 10
+
+pipelines:
+  # Full analysis with all metric stages
+  default:
+    metrics: [redundancy, contradiction, scorer]
+
+  # Stricter chunking, full analysis
+  strict:
+    preprocessing:
+      chunker: chunker-strict
+    metrics: [redundancy, contradiction, scorer]
+
+  # Fast mode: lower classification threshold, skip contradictions
+  fast:
+    preprocessing:
+      classifier: fast-classifier
+    metrics: [redundancy, scorer]
+
+  # Minimal: just instruction count, token count, severity
+  minimal:
+    metrics: [scorer]
+
+benchmarks:
+  compare-all:
+    pipelines: [default, strict, fast]
+    corpus: ./fixtures/bench_corpus/
+    metrics: [latency_p50, latency_p99, instruction_count, redundancy_ratio, contradiction_count]
+    repeat: 5

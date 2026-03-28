@@ -217,9 +217,37 @@ class OrchestratorContext:
     prompt_hash: str | None = None
 ```
 
-## Pipeline stage interface
+## Two-phase pipeline architecture (spec 02)
 
-Each pipeline stage follows this pattern:
+Every pipeline runs in two phases:
+
+### Phase 1: Preprocessing (fixed, always runs)
+
+```
+chunker → classifier → embedder
+```
+
+Produces the shared context (chunks, classified instructions, embeddings).
+Pipelines can swap individual preprocessing stages for variants via
+`preprocessing:` overrides in YAML config.
+
+### Phase 2: Metric stages (configurable per pipeline)
+
+Each metric stage consumes the preprocessed context and writes specific keys
+to the result. Metric stages are independent and safe for parallel execution.
+
+| Metric stage | Result keys |
+|-------------|-------------|
+| `redundancy` | `redundancy_groups`, `redundancy_ratio` |
+| `contradiction` | `contradictions`, `contradiction_count` |
+| `scorer` | `instruction_count`, `token_count`, `severity`, ... |
+
+All stages are built-in. Customization is through config overrides (stage
+variants), not by injecting new code. Metric stages accept parameters like
+`min_instructions` and short-circuit to fixed defaults when input is below
+the threshold.
+
+### Pipeline stage protocol
 
 ```python
 from typing import Protocol, Any
@@ -244,13 +272,6 @@ class PipelineContext:
     warnings: list[str] = field(default_factory=list)
     config: dict = field(default_factory=dict)  # per-stage config overrides
 ```
-
-When implementing a new stage:
-1. Create `src/promptlint/stages/<name>.py`
-2. Implement `PipelineStage` protocol (must have `name` and `process()`)
-3. `process()` reads from context, writes results back to context
-4. Register as a built-in stage or via `module:class` in YAML config
-5. Add tests in `tests/test_<name>.py`
 
 ## Vendor normalization
 
