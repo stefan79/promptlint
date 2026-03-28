@@ -1,0 +1,96 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "promptlint"
+version = "1.0.0"
+description = "Analyze assembled LLM prompts for instruction count, redundancy, contradictions, and structural complexity."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+dependencies = [
+    "torch>=2.0",
+    "transformers>=4.36",
+    "sentence-transformers",
+    "hdbscan>=0.8.33",
+    "tiktoken",
+    "numpy",
+    "scikit-learn",
+    "fastapi",
+    "uvicorn",
+    "httpx",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-benchmark",
+    "pytest-cov",
+    "ruff",
+    "mypy",
+]
+litellm = [
+    "litellm",
+]
+
+[project.scripts]
+promptlint = "promptlint.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/promptlint"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "N",      # pep8-naming
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "SIM",    # flake8-simplify
+    "TCH",    # flake8-type-checking
+    "RUF",    # ruff-specific
+    "PT",     # flake8-pytest-style
+    "C4",     # flake8-comprehensions
+    "PIE",    # flake8-pie
+    "RET",    # flake8-return
+    "ARG",    # flake8-unused-arguments
+]
+ignore = [
+    "E501",   # line length handled by formatter
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["promptlint"]
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+check_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = [
+    "hdbscan.*",
+    "sentence_transformers.*",
+    "transformers.*",
+    "tiktoken.*",
+    "torch.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "slow: marks tests that require model loading (deselect with '-m \"not slow\"')",
+]

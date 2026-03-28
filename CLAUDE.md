@@ -1,0 +1,156 @@
+# promptlint
+
+Static analysis for assembled LLM prompts. Counts instructions, detects
+redundancy and contradictions, scores complexity. Deterministic (encoder-based
+NLP, no LLM calls).
+
+## Architecture
+
+```
+                    ┌─────────────────────────────────┐
+                    │         promptlint.yaml          │
+                    │  (pipelines, backends, gateway,  │
+                    │   orchestrator config)            │
+                    └────────────────┬────────────────┘
+                                     │ configures
+         ┌───────────────────────────┼───────────────────────────┐
+         │                           │                           │
+         ▼                           ▼                           ▼
+┌─────────────────┐   ┌──────────────────────┐   ┌──────────────────────┐
+│ Gateway Listener │   │   Pipeline Runner    │   │      Emitters        │
+│                  │   │                      │   │                      │
+│ - Built-in proxy │   │ YAML-defined stages: │   │ - JSONL (local)      │
+│ - Nginx sidecar  │──▶│ chunk → classify →   │──▶│ - Elasticsearch      │
+│ - SDK middleware  │   │ embed → redundancy → │   │ - Prometheus         │
+│ - LLM gateway    │   │ contradict → score   │   │ - SQLite             │
+│   plugin         │   │                      │   │ - Webhook            │
+└────────┬─────────┘   └──────────┬───────────┘   └──────────▲───────────┘
+         │                        │                           │
+         │ captures               │ produces                  │ writes
+         ▼                        ▼                           │
+┌─────────────────┐   ┌──────────────────────┐               │
+│ MessageRecord    │   │  AnalysisPayload     │───────────────┘
+│                  │   │                      │
+│ - role, content  │   │ - metrics (KV)       │
+│ - provenance     │   │ - instructions[]     │
+│   (skill/tool/   │   │ - redundancy_groups[]│
+│    agent)        │   │ - contradictions[]   │
+│ - orchestrator   │   │ - severity           │
+│ - analysis_id ───┼──▶│ - prompt_fingerprint │
+└─────────────────┘   │ - orchestrator ctx   │
+                      │ - skills/tools/agents│
+                      └──────────┬───────────┘
+                                 │
+                                 │ linked by analysis_id
+                                 ▼
+                      ┌──────────────────────┐
+                      │     Feedback          │
+                      │                       │
+                      │ - analysis_id         │
+                      │ - rating (good/bad)   │
+                      │ - corrections[]       │
+                      │ - note                │
+                      │ - timestamp           │
+                      └───────────────────────┘
+                        ▲
+                        │ `promptlint feedback <id>`
+                        │  CLI command in orchestrator
+```
+
+## Core interfaces (summary)
+
+For full interface definitions with code, invoke `/architect`.
+
+| Interface | Purpose | Boundary |
+|-----------|---------|----------|
+| **AnalysisPayload** | Universal exchange type. Every pipeline produces, every emitter consumes. | pipeline → emitter |
+| **MessageRecord** | What the gateway captures. Exists whether or not analysis runs. | gateway → pipeline |
+| **Feedback** | CLI-driven (`promptlint feedback <id>`), linked by analysis_id. | user → emitter |
+| **Emitter** | Protocol: `write_analysis()` + `write_feedback()` | pipeline/feedback → storage |
+| **GatewayListener** | Protocol: `extract_messages()` + `inject_headers()` + `should_block()` | network → pipeline |
+| **NormalizedRequest** | Vendor-agnostic (Anthropic/OpenAI/Gemini) request after gateway normalization | gateway internal |
+| **OrchestratorContext** | From active plugin (spec 08): version, skills, session ID | orchestrator → gateway |
+| **PipelineStage** | Protocol: `name` + `process(context) → context` | pipeline internal |
+
+## Orchestrator wire formats
+
+Orchestrators assemble prompts differently. The gateway must normalize:
+
+| Orchestrator | System prompt | Skills | Tools | Detection |
+|-------------|--------------|--------|-------|-----------|
+| **Claude Code** | `body["system"]` | `Skill` tool calls (lazy-loaded SKILL.md) | `body["tools"]` | `<system-reminder>` tags, Skill/Agent tool_use |
+| **Codex CLI** | `messages[0]` role=system | N/A | `body["tools"]` (OpenAI format) | TBD |
+| **Generic** | Configurable | Configurable markers | Configurable | User-defined regex/xpath |
+
+Two observation modes:
+- **Passive (spec 05)**: parse wire traffic only, heuristic attribution
+- **Active (spec 08)**: orchestrator plugin provides explicit context (version, active skills, session ID)
+
+## Specs
+
+| # | Spec | Status |
+|---|------|--------|
+| 01 | [Core Pipeline](specs/01-core-pipeline.md) | ~95% implemented |
+| 02 | [Pipeline DSL](specs/02-pipeline-dsl.md) | Draft |
+| 03 | [Storage Backends](specs/03-storage-backends.md) | Draft |
+| 04 | [Gateway Integration](specs/04-gateway-integration.md) | Draft |
+| 05 | [Orchestrator Support (Passive)](specs/05-orchestrator-support.md) | Draft |
+| 06 | [Configuration Language](specs/06-configuration.md) | Draft |
+| 07 | [Benchmarks](specs/07-benchmarks.md) | Draft, blocked on 02-05 |
+| 08 | [Orchestrator Plugins (Active)](specs/08-orchestrator-plugins.md) | Draft |
+
+## Module layout
+
+```
+src/promptlint/
+├── __init__.py          # PromptAnalyzer (public API)
+├── models.py            # dataclasses (Chunk, ClassifiedChunk, etc.)
+├── config.py            # PromptLintConfig (all thresholds)
+├── chunker.py           # Stage 1: structural segmentation
+├── classifier.py        # Stage 2: DeBERTa zero-shot NLI
+├── embedder.py          # Stage 3: MiniLM sentence embeddings
+├── redundancy.py        # Stage 4: HDBSCAN / pairwise clustering
+├── contradiction.py     # Stage 5: NLI cross-encoder
+├── scorer.py            # Stage 6: metrics + severity
+├── prompt_parser.py     # Input parsing (raw, structured, files)
+├── cli.py               # CLI (analyze, check, diff, proxy, feedback)
+└── proxy.py             # FastAPI reverse proxy
+```
+
+## Python coding standards
+
+### Formatting & style
+- **ruff** for linting and formatting (config in pyproject.toml)
+- Line length: 120 chars
+- Imports: sorted by isort (via ruff), `promptlint` as first-party
+- Python 3.10+ features: use `X | Y` unions, `list[]`/`dict[]` lowercase generics
+
+### Type safety
+- **mypy** with `disallow_untyped_defs` — all functions must have type annotations
+- Use `Protocol` for interfaces, not ABCs
+- Use `@dataclass` for data types, not dicts
+
+### Documentation
+- Module-level docstring only when the module's purpose isn't obvious from its name
+- Public API functions: one-line docstring
+- No docstrings on private helpers, tests, or obvious methods
+- Comments only where the logic isn't self-evident
+
+### Testing
+- Use `pytest`, plain functions, no class-based tests
+- Tests that load ML models: mark with `@pytest.mark.slow`
+- Test files mirror source: `src/promptlint/foo.py` → `tests/test_foo.py`
+- For edge case requirements, invoke `/test-rules`
+
+### Linting (enforced by hooks)
+- `ruff check --fix` + `ruff format` on every file save
+- `ruff check` + `mypy src/` + `pytest -m 'not slow'` before push
+
+## Key decisions
+
+- **Pure Python** — encoder models (DeBERTa, MiniLM, HDBSCAN) are Python-native
+- **No LLM calls** — deterministic, fast, no API keys needed for analysis
+- **CPU only** — all inference within ~210ms latency budget
+- **AnalysisPayload is the universal contract** — every emitter and consumer speaks this type
+- **MessageRecord and AnalysisPayload are separate but linked** — messages exist independently of analysis
+- **Feedback is CLI-driven** — `promptlint feedback <id>` command, no UI for now

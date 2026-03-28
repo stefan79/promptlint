@@ -1,0 +1,331 @@
+---
+name: architect
+description: Architecture reference for code generation — interfaces, protocols, data flow, and implementation patterns
+user-invocable: true
+allowed-tools: Read, Glob, Grep, Edit, Write, Bash
+---
+
+# promptlint Architecture Guide
+
+Use this reference when generating or modifying code. All new code must conform
+to these interfaces and patterns.
+
+## Data flow
+
+```
+Gateway ──captures──▶ MessageRecord
+                          │
+                          ▼
+                    NormalizedRequest
+                          │
+                          ▼ pipeline runner
+                    AnalysisPayload ──▶ Emitter(s)
+                          │
+                          │ linked by analysis_id
+                          ▼
+                       Feedback ──▶ Emitter(s)
+```
+
+## Core interfaces
+
+### AnalysisPayload — the universal contract
+
+Every emitter accepts this. Every pipeline produces this. This is the single
+type that crosses the pipeline→emitter boundary.
+
+```python
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum
+
+class Severity(str, Enum):
+    OK = "ok"
+    WARNING = "warning"
+    CRITICAL = "critical"
+
+@dataclass
+class OrchestratorInfo:
+    name: str                        # "claude-code", "codex-cli", "langchain"
+    version: str | None = None       # from active plugin (spec 08), None if passive
+
+@dataclass
+class GatewayInfo:
+    type: str                        # "builtin-proxy", "nginx", "sdk-middleware"
+    id: str                          # instance identifier
+
+@dataclass
+class ModelInfo:
+    provider: str                    # "anthropic", "openai", "google"
+    model_id: str                    # "claude-sonnet-4-20250514", "gpt-4o"
+
+@dataclass
+class SkillInfo:
+    name: str
+    instruction_count: int = 0
+
+@dataclass
+class ToolInfo:
+    name: str
+    param_count: int = 0
+
+@dataclass
+class AgentInfo:
+    name: str
+
+@dataclass
+class Instruction:
+    text: str
+    source: str                      # section/skill that contributed this
+    type: str                        # "behavioral", "constraint", "tool_constraint"
+    confidence: float
+
+@dataclass
+class AnalysisPayload:
+    id: str                          # uuid4
+    timestamp: datetime
+    prompt_fingerprint: str          # hash of normalized instruction set
+
+    # Source context
+    orchestrator: OrchestratorInfo
+    gateway: GatewayInfo
+    model: ModelInfo
+
+    # Prompt decomposition
+    skills: list[SkillInfo] = field(default_factory=list)
+    tools: list[ToolInfo] = field(default_factory=list)
+    agents: list[AgentInfo] = field(default_factory=list)
+
+    # Pipeline results — KV pairs, pipeline-defined
+    metrics: dict[str, float] = field(default_factory=dict)
+
+    # Instruction breakdown
+    instructions: list[Instruction] = field(default_factory=list)
+    redundancy_groups: list = field(default_factory=list)  # RedundancyGroup from models.py
+    contradictions: list = field(default_factory=list)      # Contradiction from models.py
+
+    # Severity
+    severity: Severity = Severity.OK
+    warnings: list[str] = field(default_factory=list)
+```
+
+### MessageRecord — gateway capture
+
+Exists independently of analysis. One per API request observed.
+
+```python
+@dataclass
+class Provenance:
+    type: str                        # "skill", "tool", "agent", "user", "system"
+    name: str | None = None          # skill/tool/agent name if applicable
+    version: str | None = None
+
+@dataclass
+class ToolCall:
+    name: str
+    input: dict
+    output: str | None = None
+
+@dataclass
+class MessageRecord:
+    id: str                          # uuid4
+    timestamp: datetime
+    role: str                        # "user", "assistant", "system", "tool_result"
+
+    generated_by: Provenance
+    orchestrator: OrchestratorInfo
+
+    content: str
+    tool_calls: list[ToolCall] = field(default_factory=list)
+
+    analysis_id: str | None = None   # links to AnalysisPayload.id
+```
+
+### Feedback — CLI-driven
+
+```python
+@dataclass
+class Feedback:
+    id: str                          # uuid4
+    analysis_id: str                 # links to AnalysisPayload.id
+    timestamp: datetime
+    rating: str                      # "good" | "bad"
+    corrections: list[str] = field(default_factory=list)
+    note: str = ""
+```
+
+### Emitter protocol
+
+All backends implement this. Keep it simple — two methods.
+
+```python
+from typing import Protocol
+
+class Emitter(Protocol):
+    def write_analysis(self, payload: AnalysisPayload) -> None: ...
+    def write_feedback(self, feedback: Feedback) -> None: ...
+```
+
+When implementing a new emitter:
+1. Create `src/promptlint/emitters/<name>.py`
+2. Implement the `Emitter` protocol
+3. Register in the emitter factory (config-driven, spec 06)
+4. Add tests in `tests/test_emitter_<name>.py`
+
+### Gateway protocol
+
+All gateway listeners implement this.
+
+```python
+class GatewayListener(Protocol):
+    def extract_messages(self, raw_request: bytes) -> list[MessageRecord]: ...
+    def inject_headers(self, response: Any, payload: AnalysisPayload) -> None: ...
+    def should_block(self, payload: AnalysisPayload) -> bool: ...
+```
+
+### NormalizedRequest — vendor-agnostic
+
+The gateway normalizes vendor-specific formats before handing to the pipeline.
+
+```python
+@dataclass
+class NormalizedRequest:
+    vendor: str                      # "anthropic", "openai", "gemini"
+    system_prompt: str
+    tools: list[dict]
+    messages: list[MessageRecord]
+    raw_body: bytes                  # preserved for forwarding
+
+    # Orchestrator context (from spec 08 plugin, if available)
+    orchestrator_context: OrchestratorContext | None = None
+```
+
+### OrchestratorContext — from active plugin (spec 08)
+
+Provided by orchestrator hooks/plugins. Not available in passive mode.
+
+```python
+@dataclass
+class OrchestratorContext:
+    orchestrator: str
+    version: str
+    session_id: str
+    active_skills: list[str] = field(default_factory=list)
+    active_tools: list[str] = field(default_factory=list)
+    active_agents: list[str] = field(default_factory=list)
+    timestamp: datetime | None = None
+    skill_instruction_counts: dict[str, int] = field(default_factory=dict)
+    prompt_hash: str | None = None
+```
+
+## Pipeline stage interface
+
+Each pipeline stage follows this pattern:
+
+```python
+from typing import Protocol, Any
+
+class PipelineStage(Protocol):
+    """A single step in the analysis pipeline."""
+    name: str
+
+    def process(self, context: PipelineContext) -> PipelineContext: ...
+
+@dataclass
+class PipelineContext:
+    """Mutable bag passed through the pipeline."""
+    raw_text: str
+    chunks: list = field(default_factory=list)
+    instructions: list = field(default_factory=list)
+    embeddings: Any = None                    # numpy array
+    redundancy_groups: list = field(default_factory=list)
+    contradictions: list = field(default_factory=list)
+    metrics: dict[str, float] = field(default_factory=dict)
+    severity: Severity = Severity.OK
+    warnings: list[str] = field(default_factory=list)
+    config: dict = field(default_factory=dict)  # per-stage config overrides
+```
+
+When implementing a new stage:
+1. Create `src/promptlint/stages/<name>.py`
+2. Implement `PipelineStage` protocol (must have `name` and `process()`)
+3. `process()` reads from context, writes results back to context
+4. Register as a built-in stage or via `module:class` in YAML config
+5. Add tests in `tests/test_<name>.py`
+
+## Vendor normalization
+
+The gateway detects vendor from request path and normalizes:
+
+| Vendor | Path | System prompt | Tools format |
+|--------|------|--------------|-------------|
+| Anthropic | `/v1/messages` | `body["system"]` (string or content blocks) | `body["tools"]` with `input_schema` |
+| OpenAI | `/v1/chat/completions` | `messages[0]` where role=system | `body["tools"]` with `function.parameters` |
+| Gemini | `/v1beta/models/*/generateContent` | `body["system_instruction"]` | `body["tools"][0]["function_declarations"]` |
+
+## Claude Code passive detection
+
+When observing Claude Code traffic at the gateway:
+
+```python
+# Detect skill invocations
+for msg in messages:
+    if msg.role == "assistant":
+        for tc in msg.tool_calls:
+            if tc.name == "Skill":
+                skill_name = tc.input.get("skill")
+                # Next tool_result contains the SKILL.md content
+            elif tc.name == "Agent":
+                agent_type = tc.input.get("subagent_type")
+
+# Parse system reminders from any content
+import re
+SYSTEM_REMINDER_RE = re.compile(r"<system-reminder>(.*?)</system-reminder>", re.DOTALL)
+```
+
+## File organization
+
+```
+src/promptlint/
+├── __init__.py              # PromptAnalyzer (public API)
+├── models.py                # Core dataclasses (Chunk, ClassifiedChunk, etc.)
+├── payload.py               # AnalysisPayload, MessageRecord, Feedback
+├── config.py                # PromptLintConfig
+├── stages/                  # Pipeline stages (spec 02)
+│   ├── __init__.py
+│   ├── chunker.py
+│   ├── classifier.py
+│   ├── embedder.py
+│   ├── redundancy.py
+│   ├── contradiction.py
+│   └── scorer.py
+├── emitters/                # Storage backends (spec 03)
+│   ├── __init__.py
+│   ├── jsonl.py
+│   ├── elasticsearch.py
+│   ├── prometheus.py
+│   ├── sqlite.py
+│   └── webhook.py
+├── gateways/                # Gateway listeners (spec 04)
+│   ├── __init__.py
+│   ├── proxy.py             # built-in FastAPI proxy
+│   ├── normalizer.py        # vendor-specific → NormalizedRequest
+│   └── sdk_middleware.py
+├── orchestrators/           # Orchestrator adapters (spec 05)
+│   ├── __init__.py
+│   ├── claude_code.py       # passive detection
+│   ├── codex.py
+│   └── generic.py
+├── pipeline.py              # Pipeline runner (spec 02)
+├── prompt_parser.py         # Input parsing
+└── cli.py                   # CLI commands
+```
+
+## Key conventions
+
+- **Pure Python, no LLM calls** — all analysis is deterministic encoder-based NLP
+- **CPU only** — target < 210ms for 10K token prompt
+- **AnalysisPayload is the universal contract** — never bypass it
+- **Emitters are stateless** — they receive a payload and write it, no buffering
+- **Gateways normalize first** — always produce NormalizedRequest before pipeline
+- **Passive before active** — passive detection works without orchestrator changes; active enriches it
+- **Config-driven** — all thresholds, stage selection, backend choice via `promptlint.yaml`
