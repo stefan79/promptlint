@@ -4,6 +4,11 @@ from __future__ import annotations
 
 import argparse
 import sys
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from promptlint import PromptAnalyzer
+    from promptlint.models import AnalysisResult
 
 
 def main() -> None:
@@ -59,7 +64,7 @@ def _add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--contradiction-threshold", type=float, default=0.7)
 
 
-def _build_analyzer(args: argparse.Namespace):
+def _build_analyzer(args: argparse.Namespace) -> PromptAnalyzer:
     from promptlint import PromptAnalyzer
 
     return PromptAnalyzer(
@@ -72,7 +77,7 @@ def _build_analyzer(args: argparse.Namespace):
     )
 
 
-def _get_result(args: argparse.Namespace):
+def _get_result(args: argparse.Namespace) -> AnalysisResult:
     analyzer = _build_analyzer(args)
 
     if getattr(args, "claude_md", None) or getattr(args, "skills", None):
@@ -175,7 +180,7 @@ def _cmd_proxy(args: argparse.Namespace) -> None:
     uvicorn.run(app, host="0.0.0.0", port=args.port, log_level="warning")
 
 
-def _print_result(result, fmt: str) -> None:
+def _print_result(result: AnalysisResult, fmt: str) -> None:
     if fmt == "json":
         print(result.to_json())
     elif fmt == "markdown":
@@ -184,7 +189,7 @@ def _print_result(result, fmt: str) -> None:
         _print_terminal(result)
 
 
-def _print_terminal(result) -> None:
+def _print_terminal(result: AnalysisResult) -> None:
     severity_icon = {"ok": "✅", "warning": "⚠️ ", "critical": "🚨"}
     icon = severity_icon.get(result.severity, "")
 
@@ -236,8 +241,8 @@ def _print_terminal(result) -> None:
     print()
 
 
-def _print_diff_terminal(old, new) -> None:
-    def _delta(a, b):
+def _print_diff_terminal(old: AnalysisResult, new: AnalysisResult) -> None:
+    def _delta(a: int | float, b: int | float) -> str:
         d = b - a
         return f"+{d}" if d > 0 else str(d)
 

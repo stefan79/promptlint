@@ -2,15 +2,11 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 import torch
+from transformers import AutoModelForSequenceClassification, AutoTokenizer  # noqa: TC002
 
 from promptlint.config import INSTRUCTION_HYPOTHESES, Config
 from promptlint.models import Chunk, ClassifiedChunk
-
-if TYPE_CHECKING:
-    from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 
 class InstructionClassifier:
@@ -62,7 +58,7 @@ class InstructionClassifier:
         if not premises:
             return []
 
-        inputs = self.tokenizer(
+        inputs = self.tokenizer(  # type: ignore[operator]
             premises,
             hypotheses,
             padding=True,
@@ -72,7 +68,7 @@ class InstructionClassifier:
         ).to(self.device)
 
         with torch.no_grad():
-            outputs = self.model(**inputs)
+            outputs = self.model(**inputs)  # type: ignore[operator]
             # DeBERTa MNLI: [contradiction, neutral, entailment]
             probs = torch.softmax(outputs.logits, dim=-1)
         return probs[:, 2].cpu().tolist()

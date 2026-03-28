@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+from typing import TYPE_CHECKING
 
 import httpx
 from fastapi import FastAPI, Request
@@ -12,20 +13,25 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from promptlint import PromptAnalyzer
 
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+
+    from promptlint.models import AnalysisResult
+
 logger = logging.getLogger("promptlint.proxy")
 
 
 def create_app(
     target: str = "https://api.anthropic.com",
     fail_on: str | None = None,
-    **analyzer_kwargs,
+    **analyzer_kwargs: object,
 ) -> FastAPI:
     app = FastAPI(title="promptlint proxy")
     analyzer = PromptAnalyzer(**analyzer_kwargs)
     severity_order = {"ok": 0, "warning": 1, "critical": 2}
 
     @app.api_route("/v1/messages", methods=["POST"])
-    async def proxy_messages(request: Request):
+    async def proxy_messages(request: Request) -> JSONResponse | StreamingResponse:
         body_bytes = await request.body()
         body = json.loads(body_bytes)
 
@@ -102,7 +108,7 @@ def create_app(
                 )
                 response = await client.send(req, stream=True)
 
-                async def stream_response():
+                async def stream_response() -> AsyncIterator[bytes]:
                     async for chunk in response.aiter_bytes():
                         yield chunk
                     await response.aclose()
@@ -126,7 +132,7 @@ def create_app(
 
     # Pass through all other routes
     @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
-    async def proxy_passthrough(request: Request, path: str):
+    async def proxy_passthrough(request: Request, path: str) -> JSONResponse:
         body = await request.body()
         headers = dict(request.headers)
         headers.pop("host", None)
@@ -148,7 +154,7 @@ def create_app(
     return app
 
 
-def _extract_system(body: dict) -> str | None:
+def _extract_system(body: dict[str, object]) -> str | None:
     """Extract system prompt from Anthropic API request body."""
     system = body.get("system")
     if system is None:
@@ -165,7 +171,7 @@ def _extract_system(body: dict) -> str | None:
     return None
 
 
-def _analysis_headers(result) -> dict[str, str]:
+def _analysis_headers(result: AnalysisResult) -> dict[str, str]:
     return {
         "X-Promptlint-Instructions": str(result.instruction_count),
         "X-Promptlint-Unique": str(result.unique_instruction_count),

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 from promptlint.classifier import InstructionClassifier
@@ -19,7 +21,7 @@ __all__ = ["AnalysisResult", "Config", "PromptAnalyzer", "PromptLintError"]
 class PromptAnalyzer:
     """Main entry point for prompt analysis. Loads models once and runs the full pipeline."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any) -> None:
         self.config = Config(**{k: v for k, v in kwargs.items() if hasattr(Config, k)})
         self._load_models()
 
