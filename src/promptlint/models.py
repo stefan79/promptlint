@@ -5,6 +5,10 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from promptlint.gateways import GatewayInfo
 
 
 class PromptLintError(Exception):
@@ -75,6 +79,9 @@ class AnalysisResult:
     # Governance
     warnings: list[str] = field(default_factory=list)
     severity: str = "ok"
+
+    # Gateway context (set when analysis runs through a gateway)
+    gateway: GatewayInfo | None = None
 
     def to_json(self) -> str:
         return json.dumps(asdict(self), indent=2, default=str)
