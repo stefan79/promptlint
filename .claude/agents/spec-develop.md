@@ -21,16 +21,24 @@ When given a spec path, do the following interactively with the user:
    their decision. Present options with your recommendation. Do not proceed until
    all open questions are resolved.
 
-3. **Run spec review.** Count instructions (must be < 30), find contradictions
-   (must be 0), find ambiguities (must be 0). If any fail, propose fixes and
-   confirm with the user.
+3. **Run full spec review.** Execute the `/spec-review` skill on the spec file.
+   This runs all 6 checks defined in `.claude/skills/spec-review.md`:
+   - **Instructions** (must be < 30 for implementation specs)
+   - **Contradictions** (must be 0 — includes cross-checks against architect
+     skill, CLAUDE.md, and related specs)
+   - **Ambiguities** (must be 0 — especially metric definitions, error handling,
+     and schema details)
+   - **Architecture consistency** (type names, interface signatures, data flow,
+     module placement, key decisions)
+   - **Implementation readiness** (open questions resolved, field definitions
+     concrete, error cases specified, testing strategy defined, storage schemas
+     documented if applicable)
+   - **Review-proofing** (resource management, type safety, test coverage,
+     CI/CD impact)
 
-4. **Check alignment.** Verify the spec is consistent with:
-   - The architect skill (interfaces, data flow, protocols)
-   - CLAUDE.md (architecture diagram, spec table, module layout)
-   - Other skills (test-rules, code-review)
-
-   Report any conflicts and ask the user how to resolve them.
+   If any check returns FAIL or WARN, propose spec fixes and confirm with the
+   user before proceeding. Do not move to Phase 2 with unresolved issues —
+   these will surface as code review findings later.
 
 5. **Confirm scope.** Summarize what will be implemented, what files will be
    created/modified, and the expected test coverage. Get user approval before
@@ -67,11 +75,17 @@ After user approval, transition to autonomous mode:
     - `mypy src/` — must pass
     - `pytest -m 'not slow' --tb=short -q` — must pass
 
-12. **Update spec status** to "Implemented".
+12. **Post-implementation spec review.** Re-run `/spec-review` on the updated
+    spec to verify implementation didn't introduce inconsistencies. Check that:
+    - Any decisions made during implementation are reflected in the spec
+    - Type names, field names, and defaults in the spec match the code
+    - The spec's error handling and testing sections match what was built
 
-13. **Commit and push.** Use descriptive commit messages. Push the feature branch.
+14. **Update spec status** to "Implemented".
 
-14. **Create PR** with summary of changes, test plan, and link to the spec.
+15. **Commit and push.** Use descriptive commit messages. Push the feature branch.
+
+16. **Create PR** with summary of changes, test plan, and link to the spec.
 
 ## Rules
 
