@@ -17,6 +17,9 @@ class InstructionClassifier:
         self.model = model
         self.tokenizer = tokenizer
         self.device = config.device
+        model_cfg = getattr(model, "config", None)
+        label2id: dict[str, int] = getattr(model_cfg, "label2id", {}) if model_cfg else {}
+        self._entailment_idx: int = label2id.get("entailment", label2id.get("ENTAILMENT", 2))
 
     def classify(self, chunks: list[Chunk]) -> list[ClassifiedChunk]:
         if not chunks:
@@ -69,6 +72,5 @@ class InstructionClassifier:
 
         with torch.no_grad():
             outputs = self.model(**inputs)  # type: ignore[operator]
-            # DeBERTa MNLI: [contradiction, neutral, entailment]
             probs = torch.softmax(outputs.logits, dim=-1)
-        return probs[:, 2].cpu().tolist()
+        return probs[:, self._entailment_idx].cpu().tolist()

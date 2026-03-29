@@ -92,15 +92,20 @@ class _PipelineAnalyzer:
     def _load_models(self) -> None:
         from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
-        self._nli_tokenizer = AutoTokenizer.from_pretrained(self._config.classifier_model)
-        self._nli_model = AutoModelForSequenceClassification.from_pretrained(self._config.classifier_model)
-        self._nli_model.to(self._config.device)
-        self._nli_model.eval()
+        cls_tokenizer = AutoTokenizer.from_pretrained(self._config.classifier_model)
+        cls_model = AutoModelForSequenceClassification.from_pretrained(self._config.classifier_model)
+        cls_model.to(self._config.device)
+        cls_model.eval()
 
-        self._classifier = InstructionClassifier(self._config, self._nli_model, self._nli_tokenizer)  # type: ignore[arg-type]
+        con_tokenizer = AutoTokenizer.from_pretrained(self._config.contradiction_model)
+        con_model = AutoModelForSequenceClassification.from_pretrained(self._config.contradiction_model)
+        con_model.to(self._config.device)
+        con_model.eval()
+
+        self._classifier = InstructionClassifier(self._config, cls_model, cls_tokenizer)  # type: ignore[arg-type]
         self._embedder = InstructionEmbedder(self._config)
         self._redundancy_detector = RedundancyDetector(self._config)
-        self._contradiction_detector = ContradictionDetector(self._config, self._nli_model, self._nli_tokenizer)  # type: ignore[arg-type]
+        self._contradiction_detector = ContradictionDetector(self._config, con_model, con_tokenizer)  # type: ignore[arg-type]
 
     def analyze(self, text: str) -> AnalysisResult:
         """Run the two-phase pipeline."""

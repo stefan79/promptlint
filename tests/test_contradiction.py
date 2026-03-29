@@ -14,8 +14,8 @@ def pipeline():
     from promptlint.embedder import InstructionEmbedder
 
     config = Config()
-    tokenizer = AutoTokenizer.from_pretrained(config.classifier_model)
-    model = AutoModelForSequenceClassification.from_pretrained(config.classifier_model)
+    tokenizer = AutoTokenizer.from_pretrained(config.contradiction_model)
+    model = AutoModelForSequenceClassification.from_pretrained(config.contradiction_model)
     model.eval()
 
     return {

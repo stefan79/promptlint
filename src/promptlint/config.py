@@ -156,15 +156,16 @@ STOPWORDS: frozenset[str] = frozenset(
 @dataclass
 class Config:
     # Model names
-    classifier_model: str = "microsoft/deberta-v3-base-mnli"
+    classifier_model: str = "MoritzLaurer/deberta-v3-base-zeroshot-v2.0"
+    contradiction_model: str = "cross-encoder/nli-deberta-v3-base"
     embedder_model: str = "sentence-transformers/all-MiniLM-L6-v2"
     device: str = "cpu"
 
     # Stage 2: Classification
-    classification_threshold: float = 0.65
+    classification_threshold: float = 0.50
 
     # Stage 4: Redundancy
-    redundancy_similarity: float = 0.80
+    redundancy_similarity: float = 0.70
     hdbscan_min_cluster_size: int = 2
     hdbscan_min_samples: int = 1
     hdbscan_epsilon: float = 0.20

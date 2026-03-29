@@ -21,6 +21,9 @@ class ContradictionDetector:
         self.model = model
         self.tokenizer = tokenizer
         self.device = config.device
+        model_cfg = getattr(model, "config", None)
+        label2id: dict[str, int] = getattr(model_cfg, "label2id", {}) if model_cfg else {}
+        self._contradiction_idx: int = label2id.get("contradiction", label2id.get("CONTRADICTION", 0))
 
     def detect(
         self,
@@ -164,6 +167,5 @@ class ContradictionDetector:
 
         with torch.no_grad():
             outputs = self.model(**inputs)  # type: ignore[operator]
-            # DeBERTa MNLI: [contradiction=0, neutral=1, entailment=2]
             probs = torch.softmax(outputs.logits, dim=-1)
-        return probs[:, 0].cpu().tolist()
+        return probs[:, self._contradiction_idx].cpu().tolist()

@@ -94,6 +94,7 @@ class BuiltinProxy:
         @app.api_route(
             "/{path:path}",
             methods=["POST"],
+            response_model=None,
         )
         async def proxy_route(request: Request, path: str) -> JSONResponse | StreamingResponse:
             body_bytes = await request.body()
