@@ -47,6 +47,10 @@ def main() -> None:
     benchmark_parser.add_argument("--benchmark", required=True, help="Name of the benchmark to run.")
     benchmark_parser.add_argument("--output", help="Path to write JSON results (default: stdout).")
 
+    # test-backends command
+    test_backends_parser = subparsers.add_parser("test-backends", help="Test configured storage backends.")
+    test_backends_parser.add_argument("--config", required=True, help="Path to config YAML with backends section.")
+
     # proxy command
     proxy_parser = subparsers.add_parser("proxy", help="Start reverse proxy for live analysis.")
     proxy_parser.add_argument("--port", type=int, default=8100)
@@ -66,6 +70,8 @@ def main() -> None:
         _cmd_pipeline(args)
     elif args.command == "benchmark":
         _cmd_benchmark(args)
+    elif args.command == "test-backends":
+        _cmd_test_backends(args)
     elif args.command == "proxy":
         _cmd_proxy(args)
 
@@ -209,6 +215,46 @@ def _cmd_benchmark(args: argparse.Namespace) -> None:
         print(f"Benchmark results written to {args.output}")
     else:
         print(result.to_json())
+
+
+def _cmd_test_backends(args: argparse.Namespace) -> None:
+    import yaml
+
+    from promptlint.emitters import create_emitter
+    from promptlint.models import AnalysisResult
+
+    with open(args.config, encoding="utf-8") as f:
+        raw = yaml.safe_load(f)
+
+    backends = raw.get("backends", {})
+    if not backends:
+        print("No backends configured.")
+        sys.exit(1)
+
+    test_result = AnalysisResult(
+        instruction_count=1,
+        severity="ok",
+        density=1.0,
+    )
+    test_feedback = {"analysis_id": "test", "rating": "good", "note": "backend test"}
+
+    passed = 0
+    failed = 0
+    for name, config in backends.items():
+        try:
+            emitter = create_emitter(config)
+            emitter.write_analysis(test_result)
+            emitter.write_feedback(test_feedback)
+            print(f"  PASS  {name} ({config.get('type', '?')})")
+            passed += 1
+        except Exception as e:
+            print(f"  FAIL  {name} ({config.get('type', '?')}): {e}")
+            failed += 1
+
+    print()
+    print(f"{passed} passed, {failed} failed")
+    if failed > 0:
+        sys.exit(1)
 
 
 def _cmd_proxy(args: argparse.Namespace) -> None:

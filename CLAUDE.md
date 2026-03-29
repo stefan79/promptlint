@@ -95,7 +95,7 @@ Two observation modes:
 |---|------|--------|
 | 01 | [Core Pipeline](specs/01-core-pipeline.md) | ~95% implemented |
 | 02 | [Pipeline DSL](specs/02-pipeline-dsl.md) | Ready for implementation |
-| 03 | [Storage Backends](specs/03-storage-backends.md) | Draft |
+| 03 | [Storage Backends](specs/03-storage-backends.md) | Implemented |
 | 04 | [Gateway Integration](specs/04-gateway-integration.md) | Draft |
 | 05 | [Orchestrator Support (Passive)](specs/05-orchestrator-support.md) | Draft |
 | 06 | [Configuration Language](specs/06-configuration.md) | Draft |
@@ -116,7 +116,14 @@ src/promptlint/
 ├── contradiction.py     # Stage 5: NLI cross-encoder
 ├── scorer.py            # Stage 6: metrics + severity
 ├── prompt_parser.py     # Input parsing (raw, structured, files)
-├── cli.py               # CLI (analyze, check, diff, proxy, feedback)
+├── emitters/            # Storage backends (spec 03)
+│   ├── __init__.py      # Emitter protocol, factory, env var resolution
+│   ├── jsonl.py         # JSONL file backend
+│   ├── elasticsearch.py # Elasticsearch/OpenSearch backend
+│   ├── prometheus.py    # Prometheus pushgateway backend
+│   ├── sqlite.py        # SQLite backend
+│   └── webhook.py       # HTTP POST webhook backend
+├── cli.py               # CLI (analyze, check, diff, pipeline, benchmark, test-backends, proxy)
 └── proxy.py             # FastAPI reverse proxy
 ```
 
