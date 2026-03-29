@@ -40,7 +40,7 @@ When given a spec path, do the following interactively with the user:
    user before proceeding. Do not move to Phase 2 with unresolved issues —
    these will surface as code review findings later.
 
-5. **Confirm scope.** Summarize what will be implemented, what files will be
+4. **Confirm scope.** Summarize what will be implemented, what files will be
    created/modified, and the expected test coverage. Get user approval before
    proceeding.
 
@@ -48,44 +48,83 @@ When given a spec path, do the following interactively with the user:
 
 After user approval, transition to autonomous mode:
 
-6. **Create feature branch** from main: `spec-<number>-<short-name>`.
+5. **Create feature branch** from main: `spec-<number>-<short-name>`.
 
-7. **Update the spec** with resolved open questions. Mark status as
+6. **Update the spec** with resolved open questions. Mark status as
    "Ready for implementation".
 
-8. **Update dependent docs:**
+7. **Update dependent docs:**
    - Architect skill: add/update interfaces, data flow, file organization
    - CLAUDE.md: update spec table status, architecture diagram if needed
    - Other skills if affected
 
-9. **Implement the code.** Follow the architect skill patterns:
+8. **Implement the code.** Follow the architect skill patterns:
    - Use `@dataclass` for data types, `Protocol` for interfaces
    - Type annotations on all functions
    - Config through the Config dataclass
    - Keep functions under 40 lines
 
-10. **Write tests.** Follow the test-rules skill:
-    - Plain functions, `@pytest.mark.slow` for model-loading tests
-    - Cover: happy path, empty input, single element, boundaries, malformed input
-    - Files mirror source: `src/promptlint/foo.py` → `tests/test_foo.py`
+9. **Write tests.** Follow the test-rules skill:
+   - Plain functions, `@pytest.mark.slow` for model-loading tests
+   - Cover: happy path, empty input, single element, boundaries, malformed input
+   - Files mirror source: `src/promptlint/foo.py` → `tests/test_foo.py`
 
-11. **Run quality checks:**
+10. **Run quality checks:**
     - `ruff check src/ tests/` — must pass
     - `ruff format --check src/ tests/` — must pass
     - `mypy src/` — must pass
     - `pytest -m 'not slow' --tb=short -q` — must pass
 
-12. **Post-implementation spec review.** Re-run `/spec-review` on the updated
+11. **Post-implementation spec review.** Re-run `/spec-review` on the updated
     spec to verify implementation didn't introduce inconsistencies. Check that:
     - Any decisions made during implementation are reflected in the spec
     - Type names, field names, and defaults in the spec match the code
     - The spec's error handling and testing sections match what was built
 
-14. **Update spec status** to "Implemented".
+12. **Update spec status** to "Implemented".
 
-15. **Commit and push.** Use descriptive commit messages. Push the feature branch.
+13. **Commit and push.** Use descriptive commit messages. Push the feature branch.
 
-16. **Create PR** with summary of changes, test plan, and link to the spec.
+14. **Create PR** with summary of changes, test plan, and link to the spec.
+
+## Phase 3: Review cycle
+
+After the PR is created, handle the review feedback loop:
+
+15. **Wait for CI.** All checks must pass (lint, test, integration, review).
+    If any fail, fix the issue and push. Do not proceed with failures.
+
+16. **Read review comments.** Fetch all PR comments and inline review comments:
+    ```
+    gh pr view <number> --json comments --jq '.comments[].body'
+    gh api repos/<owner>/<repo>/pulls/<number>/comments --jq '.[].body'
+    ```
+
+17. **Triage findings.** For each review finding, classify it:
+    - **Code fix**: fix the code, update tests, run quality checks
+    - **Spec update**: update the spec to match the implementation decision
+    - **Skill/doc improvement**: add to IMPROVEMENTS.md for the backlog
+    - **Won't fix**: explain why in the commit message (only with user approval)
+
+18. **Apply fixes.** For code and spec fixes:
+    - Make the changes
+    - Run full quality checks (step 10)
+    - Commit with a message referencing which review item is addressed
+    - Push and verify CI passes
+
+19. **Feed IMPROVEMENTS.md.** For findings that reveal gaps in skills, CLAUDE.md,
+    specs, or rules (not code fixes), add structured entries to IMPROVEMENTS.md
+    using the standard format:
+    ```
+    ### <short title>
+    **Trigger:** <what revealed the gap>
+    **Current state:** <how the skill/rule handles it today>
+    **Impacted files:** <list of skill/rule/doc files>
+    **Suggested fix:** <concrete change>
+    ```
+
+20. **Repeat** steps 16-19 until all review findings are addressed and CI is
+    green. Then notify the user that the PR is ready for merge.
 
 ## Rules
 
@@ -93,3 +132,5 @@ After user approval, transition to autonomous mode:
 - If a quality check fails after 3 attempts, stop and report the issue
 - Always create new commits, never amend
 - Stage specific files, never `git add -A`
+- Review findings that improve skills/docs go to IMPROVEMENTS.md, not inline fixes
+- Do not merge the PR — leave that to the user
