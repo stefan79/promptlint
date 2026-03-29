@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import numpy as np
 
 from promptlint.chunker import chunk
 from promptlint.classifier import InstructionClassifier
@@ -28,7 +31,7 @@ class PreprocessedContext:
     classified: list[ClassifiedChunk] = field(default_factory=list)
     instructions: list[ClassifiedChunk] = field(default_factory=list)
     non_instructions: list[ClassifiedChunk] = field(default_factory=list)
-    embeddings: Any = None  # np.ndarray
+    embeddings: np.ndarray | None = None
     config: Config = field(default_factory=Config)
 
 
@@ -133,16 +136,19 @@ class _PipelineAnalyzer:
     def _run_metrics(self, ctx: PreprocessedContext) -> AnalysisResult:
         metrics = self._pipeline_def.metrics
         active_metrics = {m if m in BUILT_IN_METRICS else self._pipeline_config.stages[m].base for m in metrics}
+        assert ctx.embeddings is not None
 
         redundancy_groups: list = []
         contradictions: list = []
 
         def run_redundancy() -> None:
             nonlocal redundancy_groups
+            assert ctx.embeddings is not None
             redundancy_groups = self._redundancy_detector.detect(ctx.instructions, ctx.embeddings)
 
         def run_contradiction() -> None:
             nonlocal contradictions
+            assert ctx.embeddings is not None
             # Contradiction needs redundancy groups for exclusion filtering.
             # If redundancy is also active, wait for it; otherwise pass empty.
             groups = redundancy_groups if "redundancy" in active_metrics else []

@@ -2,6 +2,26 @@
 
 import pytest
 
+from promptlint.models import ClassifiedChunk
+
+
+@pytest.fixture
+def make_instruction():
+    """Factory fixture for creating ClassifiedChunk test instructions."""
+
+    def _make(text: str, section: str = "test", confidence: float = 0.9) -> ClassifiedChunk:
+        return ClassifiedChunk(
+            text=text,
+            source_section=section,
+            start_offset=0,
+            end_offset=len(text),
+            structural_type="bullet",
+            label="instruction",
+            confidence=confidence,
+        )
+
+    return _make
+
 
 def pytest_addoption(parser):
     parser.addoption("--slow", action="store_true", default=False, help="Run slow tests requiring model downloads")

@@ -109,7 +109,7 @@ def _get_result(args: argparse.Namespace) -> AnalysisResult:
 
 def _read_input(args: argparse.Namespace) -> str:
     if args.file:
-        with open(args.file) as f:
+        with open(args.file, encoding="utf-8") as f:
             return f.read()
     if not sys.stdin.isatty():
         return sys.stdin.read()
@@ -136,9 +136,9 @@ def _cmd_diff(args: argparse.Namespace) -> None:
 
     analyzer = PromptAnalyzer()
 
-    with open(args.old) as f:
+    with open(args.old, encoding="utf-8") as f:
         old_text = f.read()
-    with open(args.new) as f:
+    with open(args.new, encoding="utf-8") as f:
         new_text = f.read()
 
     old_result = analyzer.analyze(text=old_text)
@@ -181,7 +181,7 @@ def _cmd_pipeline(args: argparse.Namespace) -> None:
     config = load_config(args.config)
     runner = PipelineRunner(config)
 
-    with open(args.file) as f:
+    with open(args.file, encoding="utf-8") as f:
         text = f.read()
 
     result = runner.run(args.pipeline, text)

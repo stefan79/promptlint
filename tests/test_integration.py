@@ -22,7 +22,7 @@ def test_simple_prompt(analyzer):
 
     # Should detect roughly 10 instructions (±3)
     assert 7 <= result.instruction_count <= 15
-    assert result.contradiction_count == 0 or len(result.contradictions) == 0
+    assert len(result.contradictions) == 0
     assert result.severity in ("ok", "warning")
     assert result.density > 0
     assert result.total_chunks > 0

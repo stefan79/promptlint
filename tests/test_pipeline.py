@@ -51,7 +51,9 @@ def test_pipeline_runner_with_variant() -> None:
     runner = PipelineRunner(config)
     result = runner.run("strict", "You must always respond in English. Never use profanity.")
 
-    assert result.instruction_count >= 0
+    # Variant should still produce a valid result with scored instructions
+    assert result.instruction_count >= 1
+    assert result.severity in ("ok", "warning", "critical")
 
 
 @pytest.mark.slow
@@ -61,6 +63,8 @@ def test_pipeline_runner_empty_input() -> None:
     result = runner.run("default", "")
 
     assert result.instruction_count == 0
+    assert result.redundant_groups == []
+    assert result.contradictions == []
 
 
 def test_pipeline_runner_unknown_pipeline() -> None:

@@ -33,8 +33,16 @@ jobs:
           REVIEW_COMMENTS=$(gh api repos/${{ github.repository }}/pulls/$PR_NUMBER/comments --jq '.[].body' 2>/dev/null || echo "none")
           TODAY=$(date +%Y-%m-%d)
 
-          ENTRY=$(claude -p "You are analyzing a merged pull request for the promptlint project to extract
-          improvement opportunities.
+          ENTRY=$(claude -p "You are analyzing a merged pull request for the promptlint project.
+          Your goal is to identify improvements to the project's skills, agents, CLAUDE.md, and rules
+          (NOT the application code itself — that is handled by code review).
+
+          The improvement backlog targets these files:
+          - .claude/skills/*.md (skills that guide Claude's behavior)
+          - .claude/agents/*.md (autonomous agent definitions)
+          - CLAUDE.md (project instructions, architecture, coding standards)
+          - .github/workflows/*.yml (CI/CD rules)
+          - .claude/settings.local.json (hooks and rules)
 
           PR #$PR_NUMBER: $PR_TITLE
 
@@ -47,28 +55,35 @@ jobs:
           Diff:
           $DIFF
 
-          Analyze the changes and output a markdown entry for IMPROVEMENTS.md with this exact format:
+          Analyze the changes and output markdown entries for IMPROVEMENTS.md.
+          For EACH finding, use this exact format:
 
-          ## PR #$PR_NUMBER — $PR_TITLE ($TODAY)
+          ### <short finding title>
 
-          ### Summary
-          <2-3 sentences describing what changed and why>
+          **Trigger:** What in this PR revealed the gap (e.g. 'code review found duplicated NLI logic
+          across classifier.py and contradiction.py')
 
-          ### Lessons Learned
-          <bullet list of what went well or what was harder than expected>
+          **Current state:** How the relevant skill/agent/rule handles this today (quote the relevant
+          section if possible)
 
-          ### Improvement Opportunities
-          <bullet list of concrete, actionable improvements suggested by these changes>
-          <focus on: patterns to extract, tests to add, docs to update, refactors to consider>
-          <only list improvements that are NOT already done in this PR>
+          **Impacted files:**
+          - <list each skill, agent, rule, or CLAUDE.md section affected>
 
-          Be concise. Only list genuine improvements, not busywork." --output-format json 2>/dev/null | jq -r '.result // .message // "Extraction failed"')
+          **Suggested fix:** Concrete change to make (e.g. 'Add to architect skill: extract shared
+          NLI batch inference into a _nli_helpers.py module')
+
+          Group findings under a PR header: ## PR #$PR_NUMBER — $PR_TITLE ($TODAY)
+
+          Rules:
+          - Only suggest improvements to skills, agents, CLAUDE.md, and rules — not code fixes
+          - Only list findings NOT already addressed in this PR
+          - Be concise. No busywork. Only genuine gaps." --model claude-opus-4-6 --output-format json 2>/dev/null | jq -r '.result // .message // "Extraction failed"')
 
           # Append to IMPROVEMENTS.md
           if [ ! -f IMPROVEMENTS.md ]; then
             echo "# Improvement Backlog" > IMPROVEMENTS.md
             echo "" >> IMPROVEMENTS.md
-            echo "Auto-generated from merged PRs. Each entry summarizes changes and suggests improvements." >> IMPROVEMENTS.md
+            echo "Auto-generated from merged PRs. Tracks improvements needed in skills, agents, CLAUDE.md, and rules." >> IMPROVEMENTS.md
             echo "" >> IMPROVEMENTS.md
           fi
 

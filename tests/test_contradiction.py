@@ -3,19 +3,6 @@
 import pytest
 
 from promptlint.config import Config
-from promptlint.models import ClassifiedChunk
-
-
-def _make_instruction(text: str, confidence: float = 0.9) -> ClassifiedChunk:
-    return ClassifiedChunk(
-        text=text,
-        source_section="test",
-        start_offset=0,
-        end_offset=len(text),
-        structural_type="bullet",
-        label="instruction",
-        confidence=confidence,
-    )
 
 
 @pytest.fixture(scope="session")
@@ -39,11 +26,11 @@ def pipeline():
 
 
 @pytest.mark.slow
-def test_contradiction_detected(pipeline):
+def test_contradiction_detected(pipeline, make_instruction):
     """Contradicting instructions should be detected."""
     instructions = [
-        _make_instruction("Be concise and brief in all responses"),
-        _make_instruction("Provide comprehensive detailed responses with thorough explanations"),
+        make_instruction("Be concise and brief in all responses"),
+        make_instruction("Provide comprehensive detailed responses with thorough explanations"),
     ]
     embeddings = pipeline["embedder"].embed(instructions)
     contradictions = pipeline["detector"].detect(instructions, embeddings, [])
@@ -53,11 +40,11 @@ def test_contradiction_detected(pipeline):
 
 
 @pytest.mark.slow
-def test_non_contradiction_not_flagged(pipeline):
+def test_non_contradiction_not_flagged(pipeline, make_instruction):
     """Non-contradicting instructions should not be flagged."""
     instructions = [
-        _make_instruction("Always respond in English"),
-        _make_instruction("Use markdown formatting for code"),
+        make_instruction("Always respond in English"),
+        make_instruction("Use markdown formatting for code"),
     ]
     embeddings = pipeline["embedder"].embed(instructions)
     contradictions = pipeline["detector"].detect(instructions, embeddings, [])
