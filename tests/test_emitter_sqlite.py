@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import sqlite3
 
+import pytest
+
 from promptlint.emitters.sqlite import SqliteEmitter
 from promptlint.models import AnalysisResult, Contradiction, Feedback
 
@@ -68,6 +70,30 @@ def test_contradiction_count_stored(tmp_path, make_instruction) -> None:
     conn = sqlite3.connect(db_path)
     row = conn.execute("SELECT contradiction_count FROM analyses").fetchone()
     assert row[0] == 1
+
+
+def test_close(tmp_path) -> None:
+    db_path = str(tmp_path / "test.db")
+    emitter = SqliteEmitter({"path": db_path})
+    emitter.write_analysis(AnalysisResult(instruction_count=1))
+
+    emitter.close()
+
+    # Connection is closed — further writes should fail
+    import sqlite3
+
+    with pytest.raises(sqlite3.ProgrammingError):
+        emitter.write_analysis(AnalysisResult())
+
+
+def test_context_manager(tmp_path) -> None:
+    db_path = str(tmp_path / "test.db")
+    with SqliteEmitter({"path": db_path}) as emitter:
+        emitter.write_analysis(AnalysisResult(instruction_count=1))
+
+    conn = sqlite3.connect(db_path)
+    count = conn.execute("SELECT COUNT(*) FROM analyses").fetchone()[0]
+    assert count == 1
 
 
 def test_empty_result(tmp_path) -> None:

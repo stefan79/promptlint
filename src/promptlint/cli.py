@@ -241,14 +241,20 @@ def _cmd_test_backends(args: argparse.Namespace) -> None:
     passed = 0
     failed = 0
     for name, config in backends.items():
+        backend_type = config.get("type", "?") if isinstance(config, dict) else "?"
         try:
+            if not isinstance(config, dict):
+                msg = f"Backend config must be a mapping, got {type(config).__name__}"
+                raise TypeError(msg)
             emitter = create_emitter(config)
             emitter.write_analysis(test_result)
             emitter.write_feedback(test_feedback)
-            print(f"  PASS  {name} ({config.get('type', '?')})")
+            if hasattr(emitter, "close"):
+                emitter.close()
+            print(f"  PASS  {name} ({backend_type})")
             passed += 1
         except Exception as e:
-            print(f"  FAIL  {name} ({config.get('type', '?')}): {e}")
+            print(f"  FAIL  {name} ({backend_type}): {e}")
             failed += 1
 
     print()

@@ -42,7 +42,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install -e ".[test]" 2>/dev/null || pip install -e . && pip install pytest pyyaml
+        run: pip install -e ".[dev]" || (pip install -e . && pip install pytest pyyaml)
 
       - name: Run unit tests
         run: pytest tests/ -m 'not slow and not integration' --tb=short -q
@@ -89,7 +89,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install -e ".[test]" 2>/dev/null || pip install -e . && pip install pytest pyyaml
+        run: pip install -e ".[dev]" || (pip install -e . && pip install pytest pyyaml)
 
       - name: Run integration tests
         run: pytest tests/ -m 'integration' --integration --tb=short -q

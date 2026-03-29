@@ -62,3 +62,9 @@ class SqliteEmitter:
 
     def close(self) -> None:
         self._conn.close()
+
+    def __enter__(self) -> SqliteEmitter:
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        self.close()

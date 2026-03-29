@@ -32,7 +32,7 @@ NLP, no LLM calls).
          │ captures               │ produces                  │ writes
          ▼                        ▼                           │
 ┌─────────────────┐   ┌──────────────────────┐               │
-│ MessageRecord    │   │  AnalysisPayload     │───────────────┘
+│ MessageRecord    │   │  AnalysisResult     │───────────────┘
 │                  │   │                      │
 │ - role, content  │   │ - metrics (KV)       │
 │ - provenance     │   │ - instructions[]     │
@@ -66,7 +66,7 @@ For full interface definitions with code, invoke `/architect`.
 
 | Interface | Purpose | Boundary |
 |-----------|---------|----------|
-| **AnalysisPayload** | Universal exchange type. Every pipeline produces, every emitter consumes. | pipeline → emitter |
+| **AnalysisResult** | Universal exchange type. Every pipeline produces, every emitter consumes. | pipeline → emitter |
 | **MessageRecord** | What the gateway captures. Exists whether or not analysis runs. | gateway → pipeline |
 | **Feedback** | CLI-driven (`promptlint feedback <id>`), linked by analysis_id. | user → emitter |
 | **Emitter** | Protocol: `write_analysis()` + `write_feedback()` | pipeline/feedback → storage |
@@ -161,6 +161,6 @@ src/promptlint/
 - **Pure Python** — encoder models (DeBERTa, MiniLM, HDBSCAN) are Python-native
 - **No LLM calls** — deterministic, fast, no API keys needed for analysis
 - **CPU only** — all inference within ~210ms latency budget
-- **AnalysisPayload is the universal contract** — every emitter and consumer speaks this type
-- **MessageRecord and AnalysisPayload are separate but linked** — messages exist independently of analysis
+- **AnalysisResult is the universal contract** — every emitter and consumer speaks this type
+- **MessageRecord and AnalysisResult are separate but linked** — messages exist independently of analysis
 - **Feedback is CLI-driven** — `promptlint feedback <id>` command, no UI for now

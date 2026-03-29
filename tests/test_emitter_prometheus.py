@@ -53,7 +53,9 @@ def test_write_analysis_pushes_metrics(pushgateway) -> None:
     assert "promptlint_instruction_count" in body
     assert "promptlint_density" in body
     assert "promptlint_contradiction_count" in body
+    assert "promptlint_severity" in body
     assert 'severity="warning"' in body
+    assert 'pipeline="default"' in body
 
 
 def test_pushes_to_correct_path(pushgateway) -> None:
@@ -91,3 +93,25 @@ def test_format_includes_help_and_type(pushgateway) -> None:
     body = _CaptureHandler.received[0].decode("utf-8")
     assert "# HELP promptlint_instruction_count" in body
     assert "# TYPE promptlint_instruction_count gauge" in body
+    assert "# HELP promptlint_severity" in body
+    assert "# TYPE promptlint_severity gauge" in body
+
+
+def test_pipeline_label(pushgateway) -> None:
+    emitter = PrometheusEmitter({"pushgateway": pushgateway, "pipeline": "my-pipeline"})
+
+    emitter.write_analysis(AnalysisResult(severity="ok"))
+
+    body = _CaptureHandler.received[0].decode("utf-8")
+    assert 'pipeline="my-pipeline"' in body
+
+
+def test_severity_gauge_values(pushgateway) -> None:
+    emitter = PrometheusEmitter({"pushgateway": pushgateway})
+
+    emitter.write_analysis(AnalysisResult(severity="warning"))
+
+    body = _CaptureHandler.received[0].decode("utf-8")
+    assert 'promptlint_severity{pipeline="default",severity="ok"} 0.0' in body
+    assert 'promptlint_severity{pipeline="default",severity="warning"} 1.0' in body
+    assert 'promptlint_severity{pipeline="default",severity="critical"} 0.0' in body

@@ -23,11 +23,11 @@ All backends implement the `Emitter` protocol:
 
 ```python
 class Emitter(Protocol):
-    def write_analysis(self, payload: AnalysisPayload) -> None: ...
+    def write_analysis(self, result: AnalysisResult) -> None: ...
     def write_feedback(self, feedback: Feedback) -> None: ...
 ```
 
-- Emitters are **stateless** — they receive a payload and write it, no buffering.
+- Emitters receive a result and write it synchronously, no buffering.
 - Serialization uses `dataclasses.asdict()` for schema-flexible backends.
 - Each emitter lives in `src/promptlint/emitters/<name>.py`.
 

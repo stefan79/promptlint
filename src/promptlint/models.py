@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
 
 
 class PromptLintError(Exception):
@@ -46,6 +47,7 @@ class Feedback:
     rating: str  # "good" | "bad"
     corrections: list[str] = field(default_factory=list)
     note: str = ""
+    timestamp: str = field(default_factory=lambda: datetime.now(tz=timezone.utc).isoformat())
 
 
 @dataclass
