@@ -38,11 +38,19 @@ jobs:
           (NOT the application code itself — that is handled by code review).
 
           The improvement backlog targets these files:
-          - .claude/skills/*.md (skills that guide Claude's behavior)
+          - .claude/skills/*.md (skills that guide Claude's behavior — especially architect.md,
+            spec-review.md, code-review.md, test-rules.md, test-coverage.md)
           - .claude/agents/*.md (autonomous agent definitions)
           - CLAUDE.md (project instructions, architecture, coding standards)
+          - specs/*.md (spec files — check if they need updates based on implementation learnings)
           - .github/workflows/*.yml (CI/CD rules)
           - .claude/settings.local.json (hooks and rules)
+
+          Pay special attention to the spec-review skill (.claude/skills/spec-review.md):
+          - It should catch issues BEFORE implementation, so if code review found an issue
+            that the spec-review skill should have caught, suggest adding it to spec-review.
+          - The spec-review skill references the architect skill — if the architect skill
+            was missing information that caused review findings, suggest updating it too.
 
           PR #$PR_NUMBER: $PR_TITLE
 

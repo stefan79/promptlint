@@ -25,10 +25,14 @@ def make_instruction():
 
 def pytest_addoption(parser):
     parser.addoption("--slow", action="store_true", default=False, help="Run slow tests requiring model downloads")
+    parser.addoption(
+        "--integration", action="store_true", default=False, help="Run integration tests requiring Docker services"
+    )
 
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "slow: marks tests as slow (requires model downloads)")
+    config.addinivalue_line("markers", "integration: marks tests requiring Docker services (ES, Prometheus, etc.)")
 
 
 def pytest_collection_modifyitems(config, items):
@@ -37,3 +41,8 @@ def pytest_collection_modifyitems(config, items):
         for item in items:
             if "slow" in item.keywords:
                 item.add_marker(skip_slow)
+    if not config.getoption("--integration"):
+        skip_integration = pytest.mark.skip(reason="needs --integration option and Docker services")
+        for item in items:
+            if "integration" in item.keywords:
+                item.add_marker(skip_integration)

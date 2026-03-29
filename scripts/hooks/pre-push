@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+
+echo "Running pre-push checks..."
+
+echo "  ruff check..."
+ruff check src/ tests/
+
+echo "  ruff format..."
+ruff format --check src/ tests/
+
+echo "  mypy..."
+mypy src/
+
+echo "  pytest (fast)..."
+pytest tests/ -m 'not slow and not integration' --tb=short -q
+
+echo "  pytest (integration)..."
+if curl -sf http://localhost:9200/_cluster/health >/dev/null 2>&1 || curl -sf http://localhost:9091/-/healthy >/dev/null 2>&1; then
+  pytest tests/ -m 'integration' --integration --tb=short -q
+else
+  echo "    Skipped — no Docker services detected (run: docker compose -f docker-compose.test.yml up -d)"
+fi
+
+echo "All pre-push checks passed."

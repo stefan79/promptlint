@@ -97,10 +97,10 @@ class _PipelineAnalyzer:
         self._nli_model.to(self._config.device)
         self._nli_model.eval()
 
-        self._classifier = InstructionClassifier(self._config, self._nli_model, self._nli_tokenizer)
+        self._classifier = InstructionClassifier(self._config, self._nli_model, self._nli_tokenizer)  # type: ignore[arg-type]
         self._embedder = InstructionEmbedder(self._config)
         self._redundancy_detector = RedundancyDetector(self._config)
-        self._contradiction_detector = ContradictionDetector(self._config, self._nli_model, self._nli_tokenizer)
+        self._contradiction_detector = ContradictionDetector(self._config, self._nli_model, self._nli_tokenizer)  # type: ignore[arg-type]
 
     def analyze(self, text: str) -> AnalysisResult:
         """Run the two-phase pipeline."""

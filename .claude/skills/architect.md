@@ -19,7 +19,7 @@ Gateway ──captures──▶ MessageRecord
                     NormalizedRequest
                           │
                           ▼ pipeline runner
-                    AnalysisPayload ──▶ Emitter(s)
+                    AnalysisResult ──▶ Emitter(s)
                           │
                           │ linked by analysis_id
                           ▼
@@ -28,10 +28,16 @@ Gateway ──captures──▶ MessageRecord
 
 ## Core interfaces
 
-### AnalysisPayload — the universal contract
+### AnalysisResult — the universal contract
 
 Every emitter accepts this. Every pipeline produces this. This is the single
 type that crosses the pipeline→emitter boundary.
+
+> **Naming note:** The architecture diagrams and specs previously used
+> `AnalysisResult`. The implementation uses `AnalysisResult` — this is the
+> canonical name. The full `AnalysisResult` with gateway/orchestrator context
+> fields (shown below) will be built incrementally as specs 04-08 are
+> implemented.
 
 ```python
 from dataclasses import dataclass, field
@@ -80,7 +86,7 @@ class Instruction:
     confidence: float
 
 @dataclass
-class AnalysisPayload:
+class AnalysisResult:
     id: str                          # uuid4
     timestamp: datetime
     prompt_fingerprint: str          # hash of normalized instruction set
@@ -137,7 +143,7 @@ class MessageRecord:
     content: str
     tool_calls: list[ToolCall] = field(default_factory=list)
 
-    analysis_id: str | None = None   # links to AnalysisPayload.id
+    analysis_id: str | None = None   # links to AnalysisResult.id
 ```
 
 ### Feedback — CLI-driven
@@ -146,7 +152,7 @@ class MessageRecord:
 @dataclass
 class Feedback:
     id: str                          # uuid4
-    analysis_id: str                 # links to AnalysisPayload.id
+    analysis_id: str                 # links to AnalysisResult.id
     timestamp: datetime
     rating: str                      # "good" | "bad"
     corrections: list[str] = field(default_factory=list)
@@ -161,7 +167,7 @@ All backends implement this. Keep it simple — two methods.
 from typing import Protocol
 
 class Emitter(Protocol):
-    def write_analysis(self, payload: AnalysisPayload) -> None: ...
+    def write_analysis(self, result: AnalysisResult) -> None: ...
     def write_feedback(self, feedback: Feedback) -> None: ...
 ```
 
@@ -178,8 +184,8 @@ All gateway listeners implement this.
 ```python
 class GatewayListener(Protocol):
     def extract_messages(self, raw_request: bytes) -> list[MessageRecord]: ...
-    def inject_headers(self, response: Any, payload: AnalysisPayload) -> None: ...
-    def should_block(self, payload: AnalysisPayload) -> bool: ...
+    def inject_headers(self, response: Any, payload: AnalysisResult) -> None: ...
+    def should_block(self, payload: AnalysisResult) -> bool: ...
 ```
 
 ### NormalizedRequest — vendor-agnostic
@@ -308,8 +314,7 @@ SYSTEM_REMINDER_RE = re.compile(r"<system-reminder>(.*?)</system-reminder>", re.
 ```
 src/promptlint/
 ├── __init__.py              # PromptAnalyzer (public API)
-├── models.py                # Core dataclasses (Chunk, ClassifiedChunk, etc.)
-├── payload.py               # AnalysisPayload, MessageRecord, Feedback
+├── models.py                # Core dataclasses (Chunk, ClassifiedChunk, AnalysisResult, Feedback)
 ├── config.py                # PromptLintConfig
 ├── stages/                  # Pipeline stages (spec 02)
 │   ├── __init__.py
@@ -345,7 +350,7 @@ src/promptlint/
 
 - **Pure Python, no LLM calls** — all analysis is deterministic encoder-based NLP
 - **CPU only** — target < 210ms for 10K token prompt
-- **AnalysisPayload is the universal contract** — never bypass it
+- **AnalysisResult is the universal contract** — never bypass it
 - **Emitters are stateless** — they receive a payload and write it, no buffering
 - **Gateways normalize first** — always produce NormalizedRequest before pipeline
 - **Passive before active** — passive detection works without orchestrator changes; active enriches it

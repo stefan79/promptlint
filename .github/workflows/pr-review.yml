@@ -9,6 +9,91 @@ permissions:
   pull-requests: write
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install -e .
+          pip install ruff mypy pyyaml
+
+      - name: Ruff check
+        run: ruff check src/ tests/
+
+      - name: Ruff format
+        run: ruff format --check src/ tests/
+
+      - name: Mypy
+        run: mypy src/
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]" || (pip install -e . && pip install pytest pyyaml)
+
+      - name: Run unit tests
+        run: pytest tests/ -m 'not slow and not integration' --tb=short -q
+
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      elasticsearch:
+        image: docker.elastic.co/elasticsearch/elasticsearch:8.12.0
+        env:
+          "discovery.type": single-node
+          "xpack.security.enabled": "false"
+          ES_JAVA_OPTS: "-Xms256m -Xmx256m"
+        ports:
+          - 9200:9200
+        options: >-
+          --health-cmd "curl -sf http://localhost:9200/_cluster/health || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 30
+      pushgateway:
+        image: prom/pushgateway:v1.7.0
+        ports:
+          - 9091:9091
+        options: >-
+          --health-cmd "wget -q --spider http://localhost:9091/-/healthy || exit 1"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      webhook:
+        image: mendhak/http-https-echo:latest
+        ports:
+          - 8888:8080
+        options: >-
+          --health-cmd "wget -q --spider http://localhost:8080/ || exit 1"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]" || (pip install -e . && pip install pytest pyyaml)
+
+      - name: Run integration tests
+        run: pytest tests/ -m 'integration' --integration --tb=short -q
+
   review:
     runs-on: ubuntu-latest
     steps:
@@ -22,20 +107,21 @@ jobs:
       - name: Run PR review
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Get the diff for context
           DIFF=$(git diff origin/${{ github.base_ref }}...HEAD -- '*.py' '*.md' '*.yaml' '*.yml' '*.toml')
           CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
 
-          # Run Claude Code in headless mode for review
           REVIEW=$(claude -p "You are reviewing a pull request for the promptlint project.
+          Use the /code-review skill as your guide. Read .claude/skills/architect.md for
+          interface definitions and .claude/skills/code-review.md for the full review checklist.
 
           Review the following changes against these criteria:
-          1. Architecture compliance: data flows, Protocol usage, Config dataclass, correct types
-          2. Test coverage: are new functions tested? Edge cases present?
-          3. Technical debt: TODO without issues, duplicated logic, long functions
-          4. Python best practices: type annotations, dataclass/Protocol, modern syntax
-          5. Spec compliance: do changes match the relevant spec?
+          1. Architecture compliance: data flows, Protocol usage, correct types (AnalysisResult, Feedback — not dicts), resource management
+          2. Spec compliance: do changes match the relevant spec in specs/? Check type names, labels, field names, defaults
+          3. Test coverage: are new functions tested? Edge cases present? Integration tests where needed?
+          4. Technical debt: TODO without issues, duplicated logic, long functions
+          5. Python best practices: type annotations, dataclass/Protocol, modern syntax
 
           Changed files:
           $CHANGED_FILES
@@ -48,29 +134,4 @@ jobs:
           Be concise — only flag real issues, not style preferences already handled by ruff.
           End with a list of action items if any." --output-format json 2>/dev/null | jq -r '.result // .message // "Review failed"')
 
-          # Post review as PR comment
           gh pr comment ${{ github.event.pull_request.number }} --body "$REVIEW"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install dependencies
-        run: pip install ruff mypy pyyaml
-
-      - name: Ruff check
-        run: ruff check src/ tests/
-
-      - name: Ruff format
-        run: ruff format --check src/ tests/
-
-      - name: Mypy
-        run: mypy src/ --ignore-missing-imports
