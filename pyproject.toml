@@ -84,7 +84,6 @@ check_untyped_defs = true
 module = [
     "hdbscan.*",
     "sentence_transformers.*",
-    "transformers.*",
     "tiktoken.*",
     "torch.*",
     "sklearn.*",
@@ -92,8 +91,14 @@ module = [
 ]
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = ["transformers.*"]
+ignore_missing_imports = true
+ignore_errors = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [
     "slow: marks tests that require model loading (deselect with '-m \"not slow\"')",
+    "integration: marks tests requiring Docker services (ES, Prometheus)",
 ]
