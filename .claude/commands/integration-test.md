@@ -15,12 +15,13 @@ Run the full integration test suite against local Podman containers.
    ```
    docker compose -f docker-compose.test.yml up -d --pull always
    ```
-   This starts Elasticsearch (port 9200) and Prometheus pushgateway (port 9091),
-   pulling newer images if available.
+   This starts Elasticsearch (port 9200), Prometheus pushgateway (port 9091),
+   and webhook echo service (port 8888), pulling newer images if available.
 
-3. **Wait for services to be healthy.** Poll until both are ready:
+3. **Wait for services to be healthy.** Poll until all are ready:
    - `curl -sf http://localhost:9200/_cluster/health` returns 200
    - `curl -sf http://localhost:9091/-/healthy` returns 200
+   - `curl -sf http://localhost:8888/` returns 200
    Retry up to 30 times with 2 second intervals. Fail if services don't come up.
 
 4. **Reset data sources.** Clean up any leftover test data:

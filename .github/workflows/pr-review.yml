@@ -72,6 +72,15 @@ jobs:
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
+      webhook:
+        image: mendhak/http-https-echo:latest
+        ports:
+          - 8888:8080
+        options: >-
+          --health-cmd "wget -q --spider http://localhost:8080/ || exit 1"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
 
