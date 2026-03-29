@@ -113,13 +113,15 @@ jobs:
           CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
 
           REVIEW=$(claude -p "You are reviewing a pull request for the promptlint project.
+          Use the /code-review skill as your guide. Read .claude/skills/architect.md for
+          interface definitions and .claude/skills/code-review.md for the full review checklist.
 
           Review the following changes against these criteria:
-          1. Architecture compliance: data flows, Protocol usage, Config dataclass, correct types
-          2. Test coverage: are new functions tested? Edge cases present?
-          3. Technical debt: TODO without issues, duplicated logic, long functions
-          4. Python best practices: type annotations, dataclass/Protocol, modern syntax
-          5. Spec compliance: do changes match the relevant spec?
+          1. Architecture compliance: data flows, Protocol usage, correct types (AnalysisResult, Feedback — not dicts), resource management
+          2. Spec compliance: do changes match the relevant spec in specs/? Check type names, labels, field names, defaults
+          3. Test coverage: are new functions tested? Edge cases present? Integration tests where needed?
+          4. Technical debt: TODO without issues, duplicated logic, long functions
+          5. Python best practices: type annotations, dataclass/Protocol, modern syntax
 
           Changed files:
           $CHANGED_FILES
