@@ -1,6 +1,9 @@
 """Integration tests for the built-in proxy gateway.
 
-Requires: echo service on port 8888 (mendhak/http-https-echo from docker-compose.test.yml).
+Requires:
+- Echo service on port 8888 (mendhak/http-https-echo from docker-compose.test.yml)
+- ML models (DeBERTa, MiniLM) downloaded locally
+
 Run with: pytest --integration tests/integration/test_proxy.py
 """
 
@@ -11,13 +14,16 @@ from fastapi.testclient import TestClient
 
 from promptlint.gateways.proxy import create_app
 
-pytestmark = [pytest.mark.integration, pytest.mark.slow]
+pytestmark = pytest.mark.integration
 
 
 @pytest.fixture
 def echo_proxy() -> TestClient:
     """Proxy targeting the local echo service."""
-    app = create_app(target="http://localhost:8888")
+    try:
+        app = create_app(target="http://localhost:8888")
+    except OSError as exc:
+        pytest.skip(f"ML models not available: {exc}")
     return TestClient(app, raise_server_exceptions=False)
 
 
