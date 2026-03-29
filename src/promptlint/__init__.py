@@ -32,10 +32,10 @@ class PromptAnalyzer:
         self._nli_model.to(self.config.device)
         self._nli_model.eval()
 
-        self.classifier = InstructionClassifier(self.config, self._nli_model, self._nli_tokenizer)
+        self.classifier = InstructionClassifier(self.config, self._nli_model, self._nli_tokenizer)  # type: ignore[arg-type]
         self.embedder = InstructionEmbedder(self.config)
         self.redundancy_detector = RedundancyDetector(self.config)
-        self.contradiction_detector = ContradictionDetector(self.config, self._nli_model, self._nli_tokenizer)
+        self.contradiction_detector = ContradictionDetector(self.config, self._nli_model, self._nli_tokenizer)  # type: ignore[arg-type]
 
     def analyze(
         self,
