@@ -1,0 +1,76 @@
+name: PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Run PR review
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          # Get the diff for context
+          DIFF=$(git diff origin/${{ github.base_ref }}...HEAD -- '*.py' '*.md' '*.yaml' '*.yml' '*.toml')
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+
+          # Run Claude Code in headless mode for review
+          REVIEW=$(claude -p "You are reviewing a pull request for the promptlint project.
+
+          Review the following changes against these criteria:
+          1. Architecture compliance: data flows, Protocol usage, Config dataclass, correct types
+          2. Test coverage: are new functions tested? Edge cases present?
+          3. Technical debt: TODO without issues, duplicated logic, long functions
+          4. Python best practices: type annotations, dataclass/Protocol, modern syntax
+          5. Spec compliance: do changes match the relevant spec?
+
+          Changed files:
+          $CHANGED_FILES
+
+          Diff:
+          $DIFF
+
+          Output your review as a markdown comment. Start with a one-line summary verdict
+          (APPROVED / CHANGES REQUESTED). Then list findings grouped by category.
+          Be concise — only flag real issues, not style preferences already handled by ruff.
+          End with a list of action items if any." --output-format json 2>/dev/null | jq -r '.result // .message // "Review failed"')
+
+          # Post review as PR comment
+          gh pr comment ${{ github.event.pull_request.number }} --body "$REVIEW"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install ruff mypy pyyaml
+
+      - name: Ruff check
+        run: ruff check src/ tests/
+
+      - name: Ruff format
+        run: ruff format --check src/ tests/
+
+      - name: Mypy
+        run: mypy src/ --ignore-missing-imports

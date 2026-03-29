@@ -1,0 +1,83 @@
+name: Post-Merge Knowledge Extraction
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  extract:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.base.ref }}
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Extract knowledge from PR
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          PR_BODY=$(gh pr view $PR_NUMBER --json body -q '.body')
+          DIFF=$(git diff ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.merge_commit_sha }} -- '*.py' '*.md' '*.yaml' '*.yml' '*.toml')
+          REVIEW_COMMENTS=$(gh api repos/${{ github.repository }}/pulls/$PR_NUMBER/comments --jq '.[].body' 2>/dev/null || echo "none")
+          TODAY=$(date +%Y-%m-%d)
+
+          ENTRY=$(claude -p "You are analyzing a merged pull request for the promptlint project to extract
+          improvement opportunities.
+
+          PR #$PR_NUMBER: $PR_TITLE
+
+          PR Description:
+          $PR_BODY
+
+          Review Comments:
+          $REVIEW_COMMENTS
+
+          Diff:
+          $DIFF
+
+          Analyze the changes and output a markdown entry for IMPROVEMENTS.md with this exact format:
+
+          ## PR #$PR_NUMBER — $PR_TITLE ($TODAY)
+
+          ### Summary
+          <2-3 sentences describing what changed and why>
+
+          ### Lessons Learned
+          <bullet list of what went well or what was harder than expected>
+
+          ### Improvement Opportunities
+          <bullet list of concrete, actionable improvements suggested by these changes>
+          <focus on: patterns to extract, tests to add, docs to update, refactors to consider>
+          <only list improvements that are NOT already done in this PR>
+
+          Be concise. Only list genuine improvements, not busywork." --output-format json 2>/dev/null | jq -r '.result // .message // "Extraction failed"')
+
+          # Append to IMPROVEMENTS.md
+          if [ ! -f IMPROVEMENTS.md ]; then
+            echo "# Improvement Backlog" > IMPROVEMENTS.md
+            echo "" >> IMPROVEMENTS.md
+            echo "Auto-generated from merged PRs. Each entry summarizes changes and suggests improvements." >> IMPROVEMENTS.md
+            echo "" >> IMPROVEMENTS.md
+          fi
+
+          echo "" >> IMPROVEMENTS.md
+          echo "$ENTRY" >> IMPROVEMENTS.md
+
+          # Commit and push
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add IMPROVEMENTS.md
+          git commit -m "Extract knowledge from PR #$PR_NUMBER" || echo "No changes to commit"
+          git push
