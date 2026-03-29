@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 
 from promptlint.gateways.proxy import create_app
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.slow]
 
 
 @pytest.fixture
