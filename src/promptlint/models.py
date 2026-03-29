@@ -41,6 +41,14 @@ class Contradiction:
 
 
 @dataclass
+class Feedback:
+    analysis_id: str
+    rating: str  # "good" | "bad"
+    corrections: list[str] = field(default_factory=list)
+    note: str = ""
+
+
+@dataclass
 class AnalysisResult:
     # Counts
     instruction_count: int = 0

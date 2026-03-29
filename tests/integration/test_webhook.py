@@ -8,7 +8,7 @@ from urllib.request import urlopen
 import pytest
 
 from promptlint.emitters.webhook import WebhookEmitter
-from promptlint.models import AnalysisResult
+from promptlint.models import AnalysisResult, Feedback
 
 WEBHOOK_URL = "http://localhost:8888"
 
@@ -40,7 +40,7 @@ def test_post_feedback_accepted() -> None:
 
     emitter = WebhookEmitter({"url": WEBHOOK_URL, "timeout": 5})
 
-    emitter.write_feedback({"analysis_id": "test-123", "rating": "bad", "note": "integration test"})
+    emitter.write_feedback(Feedback(analysis_id="test-123", rating="bad", note="integration test"))
 
 
 @pytest.mark.integration

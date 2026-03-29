@@ -9,7 +9,7 @@ from typing import ClassVar
 import pytest
 
 from promptlint.emitters.prometheus import PrometheusEmitter
-from promptlint.models import AnalysisResult
+from promptlint.models import AnalysisResult, Feedback
 
 
 class _CaptureHandler(BaseHTTPRequestHandler):
@@ -78,7 +78,7 @@ def test_metric_values(pushgateway) -> None:
 def test_write_feedback_is_noop(pushgateway) -> None:
     emitter = PrometheusEmitter({"pushgateway": pushgateway})
 
-    emitter.write_feedback({"rating": "good"})
+    emitter.write_feedback(Feedback(analysis_id="test", rating="good"))
 
     assert len(_CaptureHandler.received) == 0
 

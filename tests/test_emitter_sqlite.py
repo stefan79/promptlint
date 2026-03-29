@@ -6,7 +6,7 @@ import json
 import sqlite3
 
 from promptlint.emitters.sqlite import SqliteEmitter
-from promptlint.models import AnalysisResult, Contradiction
+from promptlint.models import AnalysisResult, Contradiction, Feedback
 
 
 def test_write_analysis(tmp_path) -> None:
@@ -29,7 +29,7 @@ def test_write_feedback(tmp_path) -> None:
     db_path = str(tmp_path / "test.db")
     emitter = SqliteEmitter({"path": db_path})
 
-    emitter.write_feedback({"analysis_id": "abc-123", "rating": "bad"})
+    emitter.write_feedback(Feedback(analysis_id="abc-123", rating="bad"))
 
     conn = sqlite3.connect(db_path)
     row = conn.execute("SELECT data FROM feedback").fetchone()

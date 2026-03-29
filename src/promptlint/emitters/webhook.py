@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from urllib.request import Request, urlopen
 
 if TYPE_CHECKING:
-    from promptlint.models import AnalysisResult
+    from promptlint.models import AnalysisResult, Feedback
 
 
 class WebhookEmitter:
@@ -23,8 +23,8 @@ class WebhookEmitter:
         payload = {"type": "analysis", "data": asdict(result)}
         self._post(payload)
 
-    def write_feedback(self, feedback: dict) -> None:
-        payload = {"type": "feedback", "data": feedback}
+    def write_feedback(self, feedback: Feedback) -> None:
+        payload = {"type": "feedback", "data": asdict(feedback)}
         self._post(payload)
 
     def _post(self, payload: dict) -> None:

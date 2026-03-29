@@ -7,7 +7,7 @@ import re
 from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
-    from promptlint.models import AnalysisResult
+    from promptlint.models import AnalysisResult, Feedback
 
 
 class Emitter(Protocol):
@@ -15,7 +15,7 @@ class Emitter(Protocol):
 
     def write_analysis(self, result: AnalysisResult) -> None: ...
 
-    def write_feedback(self, feedback: dict) -> None: ...
+    def write_feedback(self, feedback: Feedback) -> None: ...
 
 
 _EMITTER_FACTORIES: dict[str, type] = {}
@@ -40,19 +40,22 @@ def create_emitter(config: dict) -> Emitter:
 
 
 def _resolve_env_vars(config: dict) -> dict:
-    """Replace ${VAR} references with environment variable values."""
-    result = {}
+    """Replace ${VAR} references with environment variable values (recursive)."""
 
     def _expand(m: re.Match[str]) -> str:
         var_name: str = m.group(1)
         return os.environ.get(var_name, m.group(0))
 
-    for key, value in config.items():
+    def _resolve(value: object) -> object:
         if isinstance(value, str):
-            result[key] = re.sub(r"\$\{(\w+)\}", _expand, value)
-        else:
-            result[key] = value
-    return result
+            return re.sub(r"\$\{(\w+)\}", _expand, value)
+        if isinstance(value, dict):
+            return {k: _resolve(v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [_resolve(v) for v in value]
+        return value
+
+    return {k: _resolve(v) for k, v in config.items()}
 
 
 # Auto-register built-in emitters on import

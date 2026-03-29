@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from promptlint.models import AnalysisResult
+    from promptlint.models import AnalysisResult, Feedback
 
 
 class JsonlEmitter:
@@ -21,8 +21,8 @@ class JsonlEmitter:
         record = {"type": "analysis", "data": asdict(result)}
         self._append(record)
 
-    def write_feedback(self, feedback: dict) -> None:
-        record = {"type": "feedback", "data": feedback}
+    def write_feedback(self, feedback: Feedback) -> None:
+        record = {"type": "feedback", "data": asdict(feedback)}
         self._append(record)
 
     def _append(self, record: dict) -> None:

@@ -10,7 +10,7 @@ from typing import ClassVar
 import pytest
 
 from promptlint.emitters.elasticsearch import ElasticsearchEmitter
-from promptlint.models import AnalysisResult
+from promptlint.models import AnalysisResult, Feedback
 
 
 class _CaptureHandler(BaseHTTPRequestHandler):
@@ -56,7 +56,7 @@ def test_write_analysis(es_server) -> None:
     assert len(_CaptureHandler.received) == 1
     doc = _CaptureHandler.received[0]
     assert doc["instruction_count"] == 5
-    assert doc["_type"] == "analysis"
+    assert doc["record_type"] == "analysis"
 
 
 def test_posts_to_correct_index(es_server) -> None:
@@ -70,10 +70,10 @@ def test_posts_to_correct_index(es_server) -> None:
 def test_write_feedback(es_server) -> None:
     emitter = ElasticsearchEmitter({"url": es_server, "index": "test"})
 
-    emitter.write_feedback({"analysis_id": "abc", "rating": "bad"})
+    emitter.write_feedback(Feedback(analysis_id="abc", rating="bad"))
 
     doc = _CaptureHandler.received[0]
-    assert doc["_type"] == "feedback"
+    assert doc["record_type"] == "feedback"
     assert doc["rating"] == "bad"
 
 

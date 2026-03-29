@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from urllib.request import Request, urlopen
 
 if TYPE_CHECKING:
-    from promptlint.models import AnalysisResult
+    from promptlint.models import AnalysisResult, Feedback
 
 _METRIC_HELP = {
     "promptlint_instruction_count": "Total number of instructions detected",
@@ -32,7 +32,7 @@ class PrometheusEmitter:
         with urlopen(req, timeout=self._timeout) as resp:
             resp.read()
 
-    def write_feedback(self, feedback: dict) -> None:
+    def write_feedback(self, feedback: Feedback) -> None:
         pass
 
     def _format_metrics(self, result: AnalysisResult) -> list[str]:

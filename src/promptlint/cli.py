@@ -221,7 +221,7 @@ def _cmd_test_backends(args: argparse.Namespace) -> None:
     import yaml
 
     from promptlint.emitters import create_emitter
-    from promptlint.models import AnalysisResult
+    from promptlint.models import AnalysisResult, Feedback
 
     with open(args.config, encoding="utf-8") as f:
         raw = yaml.safe_load(f)
@@ -236,7 +236,7 @@ def _cmd_test_backends(args: argparse.Namespace) -> None:
         severity="ok",
         density=1.0,
     )
-    test_feedback = {"analysis_id": "test", "rating": "good", "note": "backend test"}
+    test_feedback = Feedback(analysis_id="test", rating="good", note="backend test")
 
     passed = 0
     failed = 0

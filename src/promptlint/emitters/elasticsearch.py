@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from urllib.request import Request, urlopen
 
 if TYPE_CHECKING:
-    from promptlint.models import AnalysisResult
+    from promptlint.models import AnalysisResult, Feedback
 
 
 class ElasticsearchEmitter:
@@ -22,11 +22,11 @@ class ElasticsearchEmitter:
 
     def write_analysis(self, result: AnalysisResult) -> None:
         doc = asdict(result)
-        doc["_type"] = "analysis"
+        doc["record_type"] = "analysis"
         self._index_doc(doc)
 
-    def write_feedback(self, feedback: dict) -> None:
-        doc = {**feedback, "_type": "feedback"}
+    def write_feedback(self, feedback: Feedback) -> None:
+        doc = {**asdict(feedback), "record_type": "feedback"}
         self._index_doc(doc)
 
     def _index_doc(self, doc: dict) -> None:

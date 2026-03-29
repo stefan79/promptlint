@@ -8,7 +8,7 @@ from dataclasses import asdict
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from promptlint.models import AnalysisResult
+    from promptlint.models import AnalysisResult, Feedback
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS analyses (
@@ -53,9 +53,12 @@ class SqliteEmitter:
         )
         self._conn.commit()
 
-    def write_feedback(self, feedback: dict) -> None:
+    def write_feedback(self, feedback: Feedback) -> None:
         self._conn.execute(
             "INSERT INTO feedback (data) VALUES (?)",
-            (json.dumps(feedback, default=str),),
+            (json.dumps(asdict(feedback), default=str),),
         )
         self._conn.commit()
+
+    def close(self) -> None:
+        self._conn.close()

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 
 from promptlint.emitters.jsonl import JsonlEmitter
-from promptlint.models import AnalysisResult
+from promptlint.models import AnalysisResult, Feedback
 
 
 def test_write_analysis(tmp_path) -> None:
@@ -27,7 +27,7 @@ def test_write_feedback(tmp_path) -> None:
     path = tmp_path / "results.jsonl"
     emitter = JsonlEmitter({"path": str(path)})
 
-    emitter.write_feedback({"analysis_id": "abc-123", "rating": "bad", "note": "wrong count"})
+    emitter.write_feedback(Feedback(analysis_id="abc-123", rating="bad", note="wrong count"))
 
     lines = path.read_text(encoding="utf-8").strip().split("\n")
     record = json.loads(lines[0])
@@ -41,7 +41,7 @@ def test_multiple_writes_append(tmp_path) -> None:
 
     emitter.write_analysis(AnalysisResult(instruction_count=1))
     emitter.write_analysis(AnalysisResult(instruction_count=2))
-    emitter.write_feedback({"rating": "good"})
+    emitter.write_feedback(Feedback(analysis_id="test", rating="good"))
 
     lines = path.read_text(encoding="utf-8").strip().split("\n")
     assert len(lines) == 3

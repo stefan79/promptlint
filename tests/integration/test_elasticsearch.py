@@ -8,7 +8,7 @@ from urllib.request import Request, urlopen
 import pytest
 
 from promptlint.emitters.elasticsearch import ElasticsearchEmitter
-from promptlint.models import AnalysisResult
+from promptlint.models import AnalysisResult, Feedback
 
 ES_URL = "http://localhost:9200"
 TEST_INDEX = "promptlint-integration-test"
@@ -75,10 +75,10 @@ def test_write_feedback_and_read_back() -> None:
 
     emitter = ElasticsearchEmitter({"url": ES_URL, "index": TEST_INDEX})
 
-    emitter.write_feedback({"analysis_id": "test-id", "rating": "bad"})
+    emitter.write_feedback(Feedback(analysis_id="test-id", rating="bad"))
     _refresh_index()
 
     docs = _search_index()
     assert len(docs) == 1
-    assert docs[0]["_type"] == "feedback"
+    assert docs[0]["record_type"] == "feedback"
     assert docs[0]["rating"] == "bad"
