@@ -80,3 +80,206 @@ Auto-generated from merged PRs. Tracks improvements needed in skills, agents, CL
 - `.claude/skills/architect.md` — file organization section
 
 **Suggested fix:** Mark unimplemented paths with `(planned — spec XX)` suffix so reviewers don't flag missing files as bugs. Update as specs are implemented.
+
+## PR #2 — Spec 03 Storage Backends Review (2026-03-29)
+
+### Architect skill AnalysisResult diverges from implementation
+
+**Trigger:** Code review found that architect skill defines `AnalysisResult` with
+`id`, `timestamp`, `prompt_fingerprint`, `orchestrator: OrchestratorInfo`,
+`gateway: GatewayInfo`, `model: ModelInfo`, `severity: Severity` (Enum), and
+`metrics: dict[str, float]`. The actual `models.py` has a flat structure with
+`severity: str`, `instruction_count: int`, `density: float`, etc. — none of the
+rich gateway/orchestrator fields exist yet.
+
+**Current state:** Architect skill shows the target architecture without
+distinguishing current vs. future fields. The naming note added for
+`AnalysisResult` vs `AnalysisPayload` helps, but field-level divergence is not
+flagged.
+
+**Impacted files:**
+- `.claude/skills/architect.md` — AnalysisResult definition
+
+**Suggested fix:** Split the AnalysisResult section into "Current fields
+(spec 01)" and "Planned additions (specs 04-08)". This prevents implementers
+from building against aspirational fields and makes the migration path explicit
+when later specs are implemented.
+
+---
+
+### Spec-review skill missing error handling readiness check
+
+**Trigger:** Five code reviews all flagged that emitters use bare `urlopen()`
+with no error handling. Spec 03 says nothing about failure behavior. The
+spec-review skill checks "error cases specified?" but this was too generic to
+catch the gap for network-dependent backends.
+
+**Current state:** Spec-review skill section 5 (Implementation Readiness) asks
+"Are error cases and edge cases specified?" without specific prompts for network
+backends.
+
+**Impacted files:**
+- `.claude/skills/spec-review.md` — section 5 (Implementation Readiness)
+- `specs/03-storage-backends.md` — missing error handling section
+
+**Suggested fix:** Add to spec-review.md section 5: "For backends that make
+network calls, does the spec define behavior on connection failure, timeout, and
+HTTP error responses? (retry? raise? log-and-continue?)"
+
+---
+
+### Test-rules skill missing emitter edge cases
+
+**Trigger:** Test coverage for emitters has gaps: no tests for write-after-close
+(except SQLite), no tests for network failures, no tests for special characters
+in data, no tests for large payloads.
+
+**Current state:** Test-rules skill defines per-component edge cases for pipeline
+stages (chunker, classifier, embedder, redundancy, contradiction, scorer) but
+has no section for emitters.
+
+**Impacted files:**
+- `.claude/skills/test-rules.md`
+
+**Suggested fix:** Add "Emitters" subsection under per-component edge cases:
+- JSONL: write to read-only path, unicode content, deeply nested dataclasses
+- SQLite: write after close, concurrent connections
+- ES/Webhook: connection refused, HTTP 500, timeout, malformed URL
+- Prometheus: NaN/inf values, empty severity string
+- All: empty lists in AnalysisResult, Feedback with empty corrections, missing config keys
+
+---
+
+### Test-rules missing guidance for HTTP mock server pattern
+
+**Trigger:** Three test files (`test_emitter_elasticsearch.py`,
+`test_emitter_prometheus.py`, `test_emitter_webhook.py`) each duplicate a
+`_CaptureHandler(BaseHTTPRequestHandler)` class with near-identical code for
+capturing HTTP requests.
+
+**Current state:** Test-rules says to extract shared helpers to `conftest.py`
+(added in initial review) but has no specific guidance for the HTTP mock server
+pattern used by network-dependent emitters.
+
+**Impacted files:**
+- `.claude/skills/test-rules.md`
+
+**Suggested fix:** Add to test-rules.md: "For emitters and gateways that make
+HTTP calls, use a shared capture server fixture in `tests/conftest.py` rather
+than duplicating `_CaptureHandler` per test file. The shared fixture should
+capture request bodies, paths, and headers."
+
+---
+
+### Architect skill "stateless" convention conflicts with SQLite emitter
+
+**Trigger:** Architect skill says "Emitters are stateless" but SQLite emitter
+holds a `sqlite3.Connection` and implements `close()`/context manager. Code
+review flagged this contradiction.
+
+**Current state:** Key conventions in architect skill: "Emitters are stateless —
+they receive a payload and write it, no buffering."
+
+**Impacted files:**
+- `.claude/skills/architect.md` — Key conventions
+
+**Suggested fix:** Amend to: "Emitters are stateless with respect to buffering —
+they write immediately on each call. Emitters that hold connections (SQLite,
+persistent HTTP sessions) must implement `close()` and `__enter__`/`__exit__`
+for resource cleanup."
+
+---
+
+### Spec-review skill missing metric precision check
+
+**Trigger:** Spec 03 defines `promptlint_severity` as "Gauge (labeled, value=1
+for active severity)" without specifying the multi-label fan-out pattern (one
+gauge per severity level with value 0 or 1). Implementation had to interpret
+this.
+
+**Current state:** Spec-review skill checks for ambiguities but has no specific
+prompt for metric definitions being precise enough to implement.
+
+**Impacted files:**
+- `.claude/skills/spec-review.md` — section 3 (Ambiguities)
+
+**Suggested fix:** Add to section 3: "For specs that define metrics (Prometheus,
+OpenTelemetry), check that each metric specifies: exact label names, all
+possible label values, and the value semantics (e.g., 'one gauge per severity
+level, value=1 for active, 0 for others')."
+
+---
+
+### Spec-review skill missing storage schema readiness check
+
+**Trigger:** SQLite emitter defines a full schema (columns, types, tables) that
+is not specified in the spec. Reviewers flagged the gap between spec and
+implementation.
+
+**Current state:** Spec-review skill section 5 (Implementation Readiness) checks
+"does every interface have concrete field definitions" but storage schemas are
+not interfaces.
+
+**Impacted files:**
+- `.claude/skills/spec-review.md` — section 5
+
+**Suggested fix:** Add: "For backends with schemas (SQL tables, ES mappings),
+does the spec define the schema or at minimum the queryable columns/fields?"
+
+---
+
+### Code-review skill missing CI workflow checks
+
+**Trigger:** CI workflow had shell precedence bug (`A || B && C`), used
+`--ignore-missing-imports` globally (negating pyproject.toml overrides), and
+post-merge workflow has shell injection risk from unescaped PR body/diff
+interpolation.
+
+**Current state:** Code-review skill scopes to Python code. CI workflows are not
+in scope. No skill checks workflow quality.
+
+**Impacted files:**
+- `.claude/skills/code-review.md`
+
+**Suggested fix:** Add a "CI/CD compliance" section: "Verify CI workflow commands
+match tool configs in `pyproject.toml` (e.g., mypy flags, ruff config). Flag
+global flag overrides that negate fine-grained config. Check that shell variables
+containing untrusted content (PR bodies, diffs) are passed via files/heredocs,
+not inline interpolation."
+
+---
+
+### Test-rules missing marker registration chain documentation
+
+**Trigger:** The `integration` marker requires coordinated changes across
+`pyproject.toml`, `conftest.py`, and CI workflow. A future developer adding a
+new marker would not know all three locations.
+
+**Current state:** Test-rules says "mark slow tests with `@pytest.mark.slow`"
+but does not document the full registration chain.
+
+**Impacted files:**
+- `.claude/skills/test-rules.md`
+- `CLAUDE.md`
+
+**Suggested fix:** Add to test-rules.md: "When adding a new test marker:
+(1) register in `pyproject.toml` `[tool.pytest.ini_options].markers`,
+(2) add `--<name>` option in `tests/conftest.py` `pytest_addoption`,
+(3) add skip logic in `pytest_collection_modifyitems`,
+(4) add/update CI job in `.github/workflows/pr-review.yml`."
+
+---
+
+### CLAUDE.md missing mypy flags guidance
+
+**Trigger:** CI workflow runs `mypy src/ --ignore-missing-imports` which globally
+suppresses errors that `pyproject.toml` per-module overrides handle selectively.
+
+**Current state:** CLAUDE.md says "`mypy src/` before push" without specifying
+flags. No guidance to keep CI flags consistent with pyproject.toml.
+
+**Impacted files:**
+- `CLAUDE.md` — Linting section
+
+**Suggested fix:** Add: "`mypy src/` without `--ignore-missing-imports` — use
+`pyproject.toml` overrides for third-party packages."

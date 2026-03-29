@@ -30,7 +30,7 @@ jobs:
         run: ruff format --check src/ tests/
 
       - name: Mypy
-        run: mypy src/ --ignore-missing-imports
+        run: mypy src/
 
   test:
     runs-on: ubuntu-latest
