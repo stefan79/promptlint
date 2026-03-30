@@ -60,3 +60,6 @@ class PromptLintBlockedError(Exception):
 
 class PromptLintOverloadError(Exception):
     """Raised when the concurrency semaphore is full."""
+
+
+SEVERITY_ORDER: dict[str, int] = {"ok": 0, "warning": 1, "critical": 2}

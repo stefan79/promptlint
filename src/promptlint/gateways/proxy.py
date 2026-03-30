@@ -11,13 +11,15 @@ from typing import TYPE_CHECKING, Any
 
 import httpx
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from promptlint import PromptAnalyzer
 from promptlint.gateways import (
+    SEVERITY_ORDER,
     ConcurrencyConfig,
     GatewayCapability,
     GatewayInfo,
+    PromptLintOverloadError,
     VendorDetectionError,
 )
 from promptlint.gateways.normalizer import NormalizedRequest, normalize
@@ -28,8 +30,6 @@ if TYPE_CHECKING:
     from promptlint.models import AnalysisResult
 
 logger = logging.getLogger("promptlint.gateways.proxy")
-
-SEVERITY_ORDER: dict[str, int] = {"ok": 0, "warning": 1, "critical": 2}
 
 
 class BuiltinProxy:
@@ -78,10 +78,12 @@ class BuiltinProxy:
         if self._semaphore is not None and not self._semaphore.acquire(blocking=False):
             raise PromptLintOverloadError
         try:
-            return self._analyzer.analyze(
+            result = self._analyzer.analyze(
                 system_prompt=normalized.system_prompt,
                 tools=normalized.tools if normalized.tools else None,
             )
+            result.gateway = self._info
+            return result
         finally:
             if self._semaphore is not None:
                 self._semaphore.release()
@@ -96,7 +98,7 @@ class BuiltinProxy:
             methods=["POST"],
             response_model=None,
         )
-        async def proxy_route(request: Request, path: str) -> JSONResponse | StreamingResponse:
+        async def proxy_post_route(request: Request, path: str) -> JSONResponse | StreamingResponse:
             body_bytes = await request.body()
 
             # Try to normalize and analyze
@@ -123,11 +125,31 @@ class BuiltinProxy:
             # Forward to target
             return await _forward_request(request, body_bytes, path, proxy._target, proxy._timeout, result)
 
+        @app.api_route(
+            "/{path:path}",
+            methods=["GET", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
+            response_model=None,
+        )
+        async def proxy_passthrough_route(request: Request, path: str) -> Response:
+            """Forward non-POST methods without analysis."""
+            body_bytes = await request.body()
+            headers = dict(request.headers)
+            headers.pop("host", None)
+            async with httpx.AsyncClient(timeout=httpx.Timeout(proxy._timeout)) as client:
+                response = await client.request(
+                    method=request.method,
+                    url=f"{proxy._target}/{path}",
+                    headers=headers,
+                    content=body_bytes,
+                )
+            return Response(
+                status_code=response.status_code,
+                content=response.content,
+                headers=dict(response.headers),
+                media_type=response.headers.get("content-type"),
+            )
+
         return app
-
-
-class PromptLintOverloadError(Exception):
-    pass
 
 
 def _log_result(result: AnalysisResult, path: str) -> None:
@@ -242,5 +264,8 @@ def create_app(
     **analyzer_kwargs: Any,
 ) -> FastAPI:
     """Convenience factory matching the old proxy.create_app signature."""
+    # Handle deprecated `fail_on` kwarg
+    if "fail_on" in analyzer_kwargs:
+        block_on = block_on or str(analyzer_kwargs.pop("fail_on"))
     proxy = BuiltinProxy(target=target, block_on=block_on, vendor_override=vendor_override, **analyzer_kwargs)
     return proxy.create_app()

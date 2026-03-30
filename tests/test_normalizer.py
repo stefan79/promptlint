@@ -20,9 +20,10 @@ def test_detect_anthropic_with_system_key() -> None:
     assert detect_vendor(body) == "anthropic"
 
 
-def test_detect_anthropic_with_max_tokens() -> None:
+def test_detect_openai_with_max_tokens_no_system() -> None:
+    """max_tokens alone (without 'system' key) should detect as openai, not anthropic."""
     body = {"messages": [{"role": "user", "content": "Hi"}], "max_tokens": 512}
-    assert detect_vendor(body) == "anthropic"
+    assert detect_vendor(body) == "openai"
 
 
 def test_detect_openai_simple() -> None:
@@ -81,7 +82,7 @@ def test_normalize_anthropic_content_block_system() -> None:
 
 
 def test_normalize_anthropic_no_system() -> None:
-    body = {"messages": [{"role": "user", "content": "Hi"}], "max_tokens": 100}
+    body = {"system": None, "messages": [{"role": "user", "content": "Hi"}], "max_tokens": 100}
     raw = json.dumps(body).encode()
     result = normalize(raw)
     assert result.system_prompt is None
@@ -240,11 +241,11 @@ def test_normalize_gemini_no_system() -> None:
 
 
 def test_vendor_override_skips_detection() -> None:
-    body = {"messages": [{"role": "user", "content": "Hi"}], "max_tokens": 100}
+    body = {"system": "Be helpful.", "messages": [{"role": "user", "content": "Hi"}], "max_tokens": 100}
     raw = json.dumps(body).encode()
     result = normalize(raw, vendor_override="openai")
     assert result.vendor == "openai"
-    # max_tokens would normally detect as anthropic, but override forces openai
+    # 'system' key would normally detect as anthropic, but override forces openai
     assert result.system_prompt is None
 
 

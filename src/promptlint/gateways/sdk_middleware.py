@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import threading
 import uuid
@@ -12,6 +13,7 @@ import httpx
 
 from promptlint import PromptAnalyzer
 from promptlint.gateways import (
+    SEVERITY_ORDER,
     ConcurrencyConfig,
     GatewayCapability,
     GatewayInfo,
@@ -19,7 +21,7 @@ from promptlint.gateways import (
     PromptLintOverloadError,
     VendorDetectionError,
 )
-from promptlint.gateways.normalizer import normalize
+from promptlint.gateways.normalizer import NormalizedRequest, normalize
 from promptlint.gateways.proxy import analysis_headers
 
 if TYPE_CHECKING:
@@ -27,7 +29,26 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("promptlint.gateways.sdk_middleware")
 
-SEVERITY_ORDER: dict[str, int] = {"ok": 0, "warning": 1, "critical": 2}
+
+def _run_analysis(
+    normalized: NormalizedRequest,
+    analyzer: PromptAnalyzer,
+    semaphore: threading.Semaphore | None,
+    info: GatewayInfo,
+) -> AnalysisResult:
+    """Shared analysis helper for both sync and async transports."""
+    if semaphore is not None and not semaphore.acquire(blocking=False):
+        raise PromptLintOverloadError("Analysis pipeline at capacity")
+    try:
+        result = analyzer.analyze(
+            system_prompt=normalized.system_prompt,
+            tools=normalized.tools if normalized.tools else None,
+        )
+        result.gateway = info
+        return result
+    finally:
+        if semaphore is not None:
+            semaphore.release()
 
 
 class PromptLintTransport(httpx.BaseTransport):
@@ -84,31 +105,19 @@ class PromptLintTransport(httpx.BaseTransport):
             return None
         try:
             normalized = normalize(body_bytes, vendor_override=self._vendor_override)
-        except (VendorDetectionError, Exception):
-            logger.debug("Skipping analysis: could not normalize request")
+        except VendorDetectionError:
+            logger.debug("Skipping analysis: vendor detection failed")
             return None
-        return self._run_analysis(normalized)
-
-    def _run_analysis(self, normalized: object) -> AnalysisResult | None:
-        if self._semaphore is not None and not self._semaphore.acquire(blocking=False):
-            raise PromptLintOverloadError("Analysis pipeline at capacity")
+        except (json.JSONDecodeError, ValueError):
+            logger.debug("Skipping analysis: malformed request body")
+            return None
         try:
-            from promptlint.gateways.normalizer import NormalizedRequest
-
-            if not isinstance(normalized, NormalizedRequest):
-                return None
-            return self._analyzer.analyze(
-                system_prompt=normalized.system_prompt,
-                tools=normalized.tools if normalized.tools else None,
-            )
+            return _run_analysis(normalized, self._analyzer, self._semaphore, self._info)
         except PromptLintOverloadError:
             raise
         except Exception:
             logger.exception("Pipeline error, skipping analysis")
             return None
-        finally:
-            if self._semaphore is not None:
-                self._semaphore.release()
 
 
 class PromptLintAsyncTransport(httpx.AsyncBaseTransport):
@@ -165,28 +174,16 @@ class PromptLintAsyncTransport(httpx.AsyncBaseTransport):
             return None
         try:
             normalized = normalize(body_bytes, vendor_override=self._vendor_override)
-        except (VendorDetectionError, Exception):
-            logger.debug("Skipping analysis: could not normalize request")
+        except VendorDetectionError:
+            logger.debug("Skipping analysis: vendor detection failed")
             return None
-        return await asyncio.to_thread(self._run_analysis, normalized)
-
-    def _run_analysis(self, normalized: object) -> AnalysisResult | None:
-        if self._semaphore is not None and not self._semaphore.acquire(blocking=False):
-            raise PromptLintOverloadError("Analysis pipeline at capacity")
+        except (json.JSONDecodeError, ValueError):
+            logger.debug("Skipping analysis: malformed request body")
+            return None
         try:
-            from promptlint.gateways.normalizer import NormalizedRequest
-
-            if not isinstance(normalized, NormalizedRequest):
-                return None
-            return self._analyzer.analyze(
-                system_prompt=normalized.system_prompt,
-                tools=normalized.tools if normalized.tools else None,
-            )
+            return await asyncio.to_thread(_run_analysis, normalized, self._analyzer, self._semaphore, self._info)
         except PromptLintOverloadError:
             raise
         except Exception:
             logger.exception("Pipeline error, skipping analysis")
             return None
-        finally:
-            if self._semaphore is not None:
-                self._semaphore.release()

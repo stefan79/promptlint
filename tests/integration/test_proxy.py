@@ -53,4 +53,4 @@ def test_proxy_forwards_openai_request(echo_proxy: TestClient) -> None:
 def test_proxy_passthrough_non_json(echo_proxy: TestClient) -> None:
     response = echo_proxy.post("/health", content=b"ping")
     # Should pass through without analysis errors
-    assert response.status_code in (200, 422)
+    assert response.status_code == 200

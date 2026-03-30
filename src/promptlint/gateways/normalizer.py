@@ -39,8 +39,6 @@ def detect_vendor(body: dict[str, object]) -> str:
         return "gemini"
     if "system" in body:
         return "anthropic"
-    if "max_tokens" in body and "messages" in body:
-        return "anthropic"
     if "messages" in body:
         return "openai"
     msg = f"Cannot determine vendor from request body keys: {sorted(body.keys())}"
