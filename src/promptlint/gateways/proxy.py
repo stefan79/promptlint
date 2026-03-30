@@ -76,7 +76,7 @@ class BuiltinProxy:
     def _run_analysis(self, normalized: NormalizedRequest) -> AnalysisResult:
         """Run pipeline synchronously, respecting semaphore."""
         if self._semaphore is not None and not self._semaphore.acquire(blocking=False):
-            raise PromptLintOverloadError
+            raise PromptLintOverloadError("Analysis pipeline at capacity")
         try:
             result = self._analyzer.analyze(
                 system_prompt=normalized.system_prompt,

@@ -138,8 +138,9 @@ class AnalysisResult:
         return "\n".join(lines)
 
     def raise_if(self, severity: str = "critical") -> None:
-        severity_order = {"ok": 0, "warning": 1, "critical": 2}
-        if severity_order.get(self.severity, 0) >= severity_order.get(severity, 0):
+        from promptlint.gateways import SEVERITY_ORDER
+
+        if SEVERITY_ORDER.get(self.severity, 0) >= SEVERITY_ORDER.get(severity, 0):
             raise PromptLintError(
                 f"Prompt severity is {self.severity}: "
                 f"{self.instruction_count} instructions, "

@@ -283,3 +283,184 @@ flags. No guidance to keep CI flags consistent with pyproject.toml.
 
 **Suggested fix:** Add: "`mypy src/` without `--ignore-missing-imports` — use
 `pyproject.toml` overrides for third-party packages."
+
+## PR #3 — Spec 04 Gateway Integration Review (2026-03-30)
+
+### `should_block` duplicated across 3 gateway classes
+
+**Trigger:** `/simplify` code reuse review found identical `should_block` method
+in `BuiltinProxy`, `PromptLintTransport`, and `PromptLintAsyncTransport`.
+
+**Current state:** Each class has its own 3-line `should_block` method comparing
+`SEVERITY_ORDER[result.severity]` against `SEVERITY_ORDER[self._block_on]`.
+
+**Impacted files:**
+- `src/promptlint/gateways/proxy.py`
+- `src/promptlint/gateways/sdk_middleware.py`
+
+**Suggested fix:** Extract a free function `should_block(severity: str,
+block_on: str | None) -> bool` in `gateways/__init__.py`. All three classes
+delegate to it.
+
+---
+
+### `_run_analysis` duplicated between proxy and sdk_middleware
+
+**Trigger:** `/simplify` code reuse review found near-identical analysis logic
+in `BuiltinProxy._run_analysis` (proxy.py:76-89) and the module-level
+`_run_analysis` in sdk_middleware.py:33-51.
+
+**Current state:** Both acquire a semaphore, call `analyzer.analyze()`, set
+`result.gateway`, and release the semaphore. The proxy version doesn't pass a
+message to `PromptLintOverloadError`. Cannot deduplicate directly due to circular
+import (`sdk_middleware` imports `analysis_headers` from `proxy`).
+
+**Impacted files:**
+- `src/promptlint/gateways/proxy.py`
+- `src/promptlint/gateways/sdk_middleware.py`
+
+**Suggested fix:** Move both `_run_analysis` and `analysis_headers` to
+`gateways/__init__.py` (or a new `gateways/_helpers.py`), breaking the circular
+dependency. Both modules then import from the shared location.
+
+---
+
+### `__init__` boilerplate duplicated across gateway classes
+
+**Trigger:** `/simplify` code quality review found that `BuiltinProxy`,
+`PromptLintTransport`, and `PromptLintAsyncTransport` all repeat the same
+`__init__` pattern: create `GatewayInfo`, create `PromptAnalyzer`, create
+`ConcurrencyConfig`, create semaphore.
+
+**Current state:** ~15 lines of identical initialization in 3 classes.
+
+**Impacted files:**
+- `src/promptlint/gateways/proxy.py`
+- `src/promptlint/gateways/sdk_middleware.py`
+
+**Suggested fix:** Extract a `GatewayBase` mixin or dataclass that handles
+shared init (analyzer, info, semaphore, block_on). Gateway classes inherit/compose
+it and add only their transport-specific fields.
+
+---
+
+### `_load_models` duplicated between PromptAnalyzer and _PipelineAnalyzer
+
+**Trigger:** `/simplify` code reuse review found identical model-loading logic
+in `__init__.py` and `pipeline.py`.
+
+**Current state:** Both load classifier (tokenizer + model), contradiction
+(tokenizer + model), and embedder with identical code (~20 lines each).
+
+**Impacted files:**
+- `src/promptlint/__init__.py`
+- `src/promptlint/pipeline.py`
+
+**Suggested fix:** Extract a `load_models(config: Config) -> ModelBundle`
+function in a shared module (e.g. `_model_loader.py`). Both analyzers call it.
+
+---
+
+### httpx.AsyncClient created per request in proxy
+
+**Trigger:** `/simplify` efficiency review found that `_forward_request` and
+`proxy_passthrough_route` each create a new `httpx.AsyncClient` per request.
+
+**Current state:** `async with httpx.AsyncClient(timeout=...) as client:` inside
+every route handler. Connection pooling is wasted since the client is discarded
+after each request.
+
+**Impacted files:**
+- `src/promptlint/gateways/proxy.py`
+
+**Suggested fix:** Create the `httpx.AsyncClient` once in `BuiltinProxy.__init__`
+(or via a FastAPI lifespan handler) and reuse it across requests. Add `aclose()`
+in shutdown.
+
+---
+
+### Double JSON parse in _forward_request
+
+**Trigger:** `/simplify` efficiency review found that `_forward_request` parses
+the body JSON again just to check `body.get("stream", False)`, even though
+normalization already parsed it.
+
+**Current state:** `json.loads(body_bytes)` at proxy.py:198 duplicates the parse
+done during `normalize()`.
+
+**Impacted files:**
+- `src/promptlint/gateways/proxy.py`
+
+**Suggested fix:** Add `is_streaming: bool` field to `NormalizedRequest` during
+normalization. Pass it through to `_forward_request` instead of re-parsing.
+
+---
+
+### threading.Semaphore used in async context
+
+**Trigger:** `/simplify` efficiency review noted that the async transport uses
+`threading.Semaphore` even though analysis runs via `asyncio.to_thread`.
+
+**Current state:** `threading.Semaphore` works but doesn't integrate with the
+asyncio event loop — it blocks the thread rather than yielding.
+
+**Impacted files:**
+- `src/promptlint/gateways/sdk_middleware.py`
+- `src/promptlint/gateways/proxy.py`
+
+**Suggested fix:** Use `asyncio.Semaphore` for async gateways to avoid blocking
+the event loop during semaphore acquisition. Keep `threading.Semaphore` for the
+sync transport.
+
+---
+
+### `_forward_request` parameter sprawl
+
+**Trigger:** `/simplify` code quality review flagged `_forward_request` taking
+6 parameters (request, body_bytes, path, target, timeout, result).
+
+**Current state:** Free function at module level with too many positional params.
+
+**Impacted files:**
+- `src/promptlint/gateways/proxy.py`
+
+**Suggested fix:** Make it a method on `BuiltinProxy` (it already accesses
+`_target` and `_timeout` via params). Reduces to 3 params: request, body_bytes,
+result.
+
+---
+
+### Vendor and GatewayInfo.type should use Literal types or enums
+
+**Trigger:** `/simplify` code quality review flagged stringly-typed `vendor` in
+normalizer and `GatewayInfo.type`.
+
+**Current state:** `vendor: str` in normalizer accepts arbitrary strings.
+`GatewayInfo.type: str` same. No compile-time checking of valid values.
+
+**Impacted files:**
+- `src/promptlint/gateways/__init__.py` — `GatewayInfo.type`
+- `src/promptlint/gateways/normalizer.py` — vendor field
+
+**Suggested fix:** Use `Literal["anthropic", "openai", "gemini"]` for vendor
+and `Literal["builtin-proxy", "sdk-middleware"]` for `GatewayInfo.type`.
+
+---
+
+### normalized.messages silently dropped
+
+**Trigger:** `/simplify` code quality review noted that `NormalizedRequest` has
+a `messages` field populated by the normalizer, but neither proxy nor
+sdk_middleware passes it to the analyzer.
+
+**Current state:** Messages are extracted during normalization but never used.
+This is expected (spec 05 covers message analysis), but undocumented.
+
+**Impacted files:**
+- `src/promptlint/gateways/normalizer.py`
+- `src/promptlint/gateways/proxy.py`
+- `src/promptlint/gateways/sdk_middleware.py`
+
+**Suggested fix:** Add a `# TODO(spec-05): pass messages to analyzer for
+per-turn analysis` comment in the analysis callsites. Or defer to spec 05
+implementation.
