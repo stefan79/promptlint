@@ -536,3 +536,226 @@ This is expected (spec 05 covers message analysis), but undocumented.
 **Suggested fix:** Add a `# TODO(spec-05): pass messages to analyzer for
 per-turn analysis` comment in the analysis callsites. Or defer to spec 05
 implementation.
+
+Now I have full context. Let me analyze the PR diff against the skills and produce findings.
+
+## PR #3 — Implement gateway integration (spec 04) (2026-04-01)
+
+### Spec-review skill missing vendor detection ambiguity check
+
+**Trigger:** Code review found P1 bug where `max_tokens` in the vendor detector
+classified OpenAI requests as Anthropic. The spec's detection table was ambiguous
+about `max_tokens` being a tiebreaker — the original spec said Anthropic markers
+include `"max_tokens"` but didn't note that OpenAI also commonly uses `max_tokens`.
+
+**Current state:** Spec-review check #3 (Ambiguities) says: "Find any instruction
+that could be interpreted in more than one way by a reasonable implementer."
+It does not specifically guide reviewers to check decision tables/lookup tables
+for overlapping conditions or ambiguous discrimination logic.
+
+**Impacted files:**
+- `.claude/skills/spec-review.md` — check #3 (Ambiguities)
+
+**Suggested fix:** Add to check #3: "For detection/dispatch tables (vendor
+detection, route matching, config lookup), verify that conditions are mutually
+exclusive and that the documented evaluation order resolves all overlaps. Flag
+any row where a real-world input could match multiple rows."
+
+---
+
+### Spec-review skill missing backward-compatibility check for replaced APIs
+
+**Trigger:** Code review found P1 bug where the compatibility `create_app` shim
+silently drops `fail_on`, breaking existing callers. The spec defined `block_on`
+as the new name but didn't specify that the old `fail_on` must remain functional
+in the compatibility shim.
+
+**Current state:** Spec-review check #6 (Review-proofing) covers resource
+management, type safety, test coverage, and CI/CD. It does not check for backward
+compatibility when a spec replaces or renames an existing API.
+
+**Impacted files:**
+- `.claude/skills/spec-review.md` — check #6 (Review-proofing)
+
+**Suggested fix:** Add to check #6: "When a spec replaces or renames an existing
+API (function, CLI flag, config key), verify the spec defines: (a) a migration
+path or compatibility shim, (b) which old parameters map to new ones, (c) what
+happens to callers using the old API. Flag any replaced API without explicit
+backward-compat instructions."
+
+---
+
+### Spec-review skill missing HTTP method coverage check
+
+**Trigger:** Code review found P2 bug where the refactored proxy only registered
+`POST` routes, breaking `GET /v1/models` and other non-POST methods that the
+previous proxy supported. The spec defined route matching only for POST endpoints.
+
+**Current state:** Spec-review check #5 (Implementation readiness) checks for
+"error cases and edge cases specified" but doesn't specifically check whether
+specs that replace existing functionality preserve the full surface area of what
+they replace.
+
+**Impacted files:**
+- `.claude/skills/spec-review.md` — check #5 (Implementation readiness)
+
+**Suggested fix:** Add to check #5: "When a spec refactors or replaces existing
+behavior, verify the spec explicitly addresses all capabilities of the replaced
+code — not just the primary path. Check for secondary routes, optional parameters,
+edge-case handling, and HTTP methods that the old implementation supported."
+
+---
+
+### Architect skill GatewayListener protocol diverges from implementation
+
+**Trigger:** The implemented `GatewayListener` protocol uses `extract_request()`
+returning `NormalizedRequest`, while the architect skill still shows
+`extract_messages()` returning `list[MessageRecord]`. The spec also added
+`capabilities` and `info` properties not in the architect skill.
+
+**Current state:** Architect skill (line 184-189) defines:
+```python
+class GatewayListener(Protocol):
+    def extract_messages(self, raw_request: bytes) -> list[MessageRecord]: ...
+    def inject_headers(self, response: Any, payload: AnalysisResult) -> None: ...
+    def should_block(self, payload: AnalysisResult) -> bool: ...
+```
+
+**Impacted files:**
+- `.claude/skills/architect.md` — Gateway protocol section
+
+**Suggested fix:** Update GatewayListener to match implementation:
+```python
+class GatewayListener(Protocol):
+    @property
+    def capabilities(self) -> GatewayCapability: ...
+    @property
+    def info(self) -> GatewayInfo: ...
+    def extract_request(self, raw_body: bytes) -> NormalizedRequest: ...
+    def inject_headers(self, response: Any, result: AnalysisResult) -> None: ...
+    def should_block(self, result: AnalysisResult) -> bool: ...
+```
+Also add `GatewayCapability` flag enum and `ConcurrencyConfig` to the interfaces section.
+
+---
+
+### Architect skill NormalizedRequest diverges from implementation
+
+**Trigger:** The implementation added `model_id` field and changed `system_prompt`
+to `str | None` and `messages` to `list[NormalizedMessage]` (not
+`list[MessageRecord]`). The architect skill still shows the old definition.
+
+**Current state:** Architect skill (line 196-206) shows `system_prompt: str` (not
+optional), `messages: list[MessageRecord]` (wrong type), and no `model_id` field.
+
+**Impacted files:**
+- `.claude/skills/architect.md` — NormalizedRequest section
+
+**Suggested fix:** Update to match implementation: `system_prompt: str | None`,
+`messages: list[NormalizedMessage]`, add `model_id: str | None = None`. Add the
+`NormalizedMessage` and `ToolCall` dataclass definitions. This also resolves the
+inconsistency between the `ToolCall` in architect (under MessageRecord) and the
+gateway-specific `ToolCall` in normalizer.
+
+---
+
+### Architect skill vendor detection uses path-based detection, implementation uses body sniffing
+
+**Trigger:** The implementation uses body-sniffing (top-level JSON keys) for
+vendor detection, but the architect skill still says "The gateway detects vendor
+from request path."
+
+**Current state:** Architect skill (line 284) says: "The gateway detects vendor
+from request path and normalizes:" with a table showing URL paths (`/v1/messages`,
+`/v1/chat/completions`, etc.).
+
+**Impacted files:**
+- `.claude/skills/architect.md` — Vendor normalization section
+
+**Suggested fix:** Update to: "The gateway detects vendor by body sniffing
+(top-level JSON keys), with optional config override. Detection order: Gemini
+(`system_instruction` or `contents`) → Anthropic (`system` key) → OpenAI
+(fallback when `messages` present)." Remove URL paths from the detection table
+(paths are routing, not detection).
+
+---
+
+### Architect skill AnalysisResult missing `gateway: GatewayInfo | None` field
+
+**Trigger:** Implementation added `gateway: GatewayInfo | None = None` to
+`AnalysisResult`, but the architect skill shows `gateway: GatewayInfo` as
+required (non-optional). The spec explicitly calls this out as needing update.
+
+**Current state:** Architect skill (line 98): `gateway: GatewayInfo` — no
+`| None`, no default.
+
+**Impacted files:**
+- `.claude/skills/architect.md` — AnalysisResult definition
+
+**Suggested fix:** Change to `gateway: GatewayInfo | None = None` with comment:
+"Set by gateway adapter; None for direct PromptAnalyzer.analyze() calls."
+
+---
+
+### CLAUDE.md module layout missing gateways/ submodules
+
+**Trigger:** PR added `src/promptlint/gateways/` with `__init__.py`,
+`normalizer.py`, `proxy.py`, and `sdk_middleware.py`, but CLAUDE.md's module
+layout section still shows the flat structure without the gateways package.
+
+**Current state:** CLAUDE.md module layout shows `proxy.py` at top level, no
+`gateways/` directory.
+
+**Impacted files:**
+- `CLAUDE.md` — Module layout section
+
+**Suggested fix:** Update module layout to include:
+```
+├── gateways/
+│   ├── __init__.py          # GatewayListener protocol, GatewayCapability, exceptions
+│   ├── normalizer.py        # Vendor detection + normalization
+│   ├── proxy.py             # BuiltinProxy (FastAPI reverse proxy)
+│   └── sdk_middleware.py    # httpx transport middleware
+├── proxy.py                 # Deprecated shim → gateways.proxy
+```
+
+---
+
+### Test-rules skill missing gateway/transport test patterns
+
+**Trigger:** PR added 54 gateway unit tests using patterns not covered by
+test-rules: mock analyzers, mock httpx transports (`_EchoTransport`,
+`_AsyncEchoTransport`), FastAPI `TestClient` with `raise_server_exceptions=False`,
+and semaphore exhaustion testing. These patterns will recur for every new gateway.
+
+**Current state:** Test-rules per-component edge cases cover Chunker, Classifier,
+Embedder, Redundancy, Contradiction, and Scorer. No gateway-specific patterns.
+
+**Impacted files:**
+- `.claude/skills/test-rules.md` — Per-component edge cases section
+
+**Suggested fix:** Add gateway edge cases: "**Gateway/Transport**: mock analyzer
+returning each severity level, mock httpx transports (sync `_EchoTransport` and
+async `_AsyncEchoTransport`), `TestClient(raise_server_exceptions=False)` for
+proxy tests, semaphore exhaustion (429/PromptLintOverloadError), malformed body
+passthrough, vendor detection fallback, `block_on` at each severity boundary."
+
+---
+
+### Code-review skill missing deprecation shim quality check
+
+**Trigger:** The `proxy.py` backward-compatibility shim silently drops `fail_on`
+in `**kwargs` rather than mapping it, which a code review check should catch.
+
+**Current state:** Code-review step #2 (Architecture compliance) checks
+interfaces match protocols and step #6 (Spec compliance) checks field names
+match. Neither checks that deprecated shims actually forward all parameters
+correctly.
+
+**Impacted files:**
+- `.claude/skills/code-review.md` — step #4 (Technical debt)
+
+**Suggested fix:** Add to step #4: "Deprecated shims and compatibility wrappers:
+verify they forward all parameters from the old API to the new one. Check that
+renamed parameters are mapped (not silently dropped via `**kwargs`). Test that
+the shim produces identical behavior to the old code for all documented use cases."
