@@ -103,7 +103,7 @@ def test_register_default_adapters_with_custom_adapter_present() -> None:
     class CustomAdapter:
         name: str = "custom"
 
-        def detect(self, request: NormalizedRequest) -> DetectedContext | None:
+        def detect(self, request: NormalizedRequest) -> DetectedContext | None:  # noqa: ARG002
             return None
 
     register_adapter(CustomAdapter())  # type: ignore[arg-type]
