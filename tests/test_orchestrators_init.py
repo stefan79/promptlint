@@ -97,6 +97,27 @@ def test_detect_empty_messages() -> None:
     assert ctx.orchestrator_name == "generic"
 
 
+def test_register_default_adapters_with_custom_adapter_present() -> None:
+    """Built-ins should be added even when custom adapters are already registered."""
+
+    class CustomAdapter:
+        name: str = "custom"
+
+        def detect(self, request: NormalizedRequest) -> DetectedContext | None:
+            return None
+
+    register_adapter(CustomAdapter())  # type: ignore[arg-type]
+    register_default_adapters()
+    adapters = get_adapters()
+    names = [a.name for a in adapters]
+    assert "claude-code" in names
+    assert "generic" in names
+    assert "custom" in names
+    assert len(adapters) == 3
+    # claude-code should be first (inserted at 0)
+    assert names[0] == "claude-code"
+
+
 def test_detected_context_default_fields() -> None:
     ctx = DetectedContext(orchestrator_name="test")
     assert ctx.skills == []

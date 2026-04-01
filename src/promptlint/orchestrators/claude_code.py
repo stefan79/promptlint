@@ -25,12 +25,13 @@ class ClaudeCodeAdapter:
         for msg in request.messages:
             # Check tool calls for Skill/Agent invocations
             for tc in msg.tool_calls:
+                inp = tc.input if isinstance(tc.input, dict) else {}
                 if tc.name == "Skill":
-                    skill_name = tc.input.get("skill", "")
+                    skill_name = inp.get("skill", "")
                     if skill_name:
                         skills.append(SkillInfo(name=str(skill_name)))
                 elif tc.name == "Agent":
-                    agent_type = str(tc.input.get("subagent_type", "agent"))
+                    agent_type = str(inp.get("subagent_type", "agent"))
                     agents.append(AgentInfo(name=agent_type, agent_type=agent_type))
 
             # Check message content for system-reminder tags

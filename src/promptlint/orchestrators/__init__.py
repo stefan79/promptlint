@@ -72,10 +72,12 @@ def detect(request: NormalizedRequest) -> DetectedContext:
 
 
 def register_default_adapters() -> None:
-    """Register the built-in adapters in priority order."""
+    """Register the built-in adapters if not already present."""
     from promptlint.orchestrators.claude_code import ClaudeCodeAdapter
     from promptlint.orchestrators.generic import GenericAdapter
 
-    if not _ADAPTERS:
-        register_adapter(ClaudeCodeAdapter())
-        register_adapter(GenericAdapter())
+    registered_names = {a.name for a in _ADAPTERS}
+    if "claude-code" not in registered_names:
+        _ADAPTERS.insert(0, ClaudeCodeAdapter())
+    if "generic" not in registered_names:
+        _ADAPTERS.append(GenericAdapter())

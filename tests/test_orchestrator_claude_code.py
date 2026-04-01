@@ -205,6 +205,24 @@ def test_mixed_skills_and_agents() -> None:
     assert [a.name for a in ctx.agents] == ["parallel"]
 
 
+def test_malformed_tool_call_input_string() -> None:
+    """Non-dict tool_call input should not raise AttributeError."""
+    adapter = ClaudeCodeAdapter()
+    msg = NormalizedMessage(
+        role="assistant",
+        content="<system-reminder>x</system-reminder>",
+        tool_calls=[
+            ToolCall(name="Skill", input="not a dict"),  # type: ignore[arg-type]
+            ToolCall(name="Agent", input=["a", "b"]),  # type: ignore[arg-type]
+        ],
+    )
+    ctx = adapter.detect(_make_request(messages=[msg]))
+    assert ctx is not None
+    assert len(ctx.skills) == 0
+    assert len(ctx.agents) == 1  # Agent with default type
+    assert ctx.agents[0].agent_type == "agent"
+
+
 def test_no_system_prompt_source_empty() -> None:
     adapter = ClaudeCodeAdapter()
     msg = NormalizedMessage(
