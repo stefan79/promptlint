@@ -22,7 +22,7 @@ class GenericAdapter:
 
     def detect(self, request: NormalizedRequest) -> DetectedContext:
         """Always matches — returns generic context with tool extraction."""
-        tools = _extract_tools(request)
+        tools = extract_tools(request)
         system_source = _VENDOR_SYSTEM_SOURCES.get(request.vendor, "unknown")
 
         return DetectedContext(
@@ -32,7 +32,7 @@ class GenericAdapter:
         )
 
 
-def _extract_tools(request: NormalizedRequest) -> list[ToolInfo]:
+def extract_tools(request: NormalizedRequest) -> list[ToolInfo]:
     """Extract tool definitions from normalized request (vendor-agnostic)."""
     tools: list[ToolInfo] = []
     for tool_def in request.tools:

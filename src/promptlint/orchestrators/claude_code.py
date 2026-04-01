@@ -5,7 +5,8 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
-from promptlint.orchestrators import AgentInfo, DetectedContext, SkillInfo, ToolInfo
+from promptlint.orchestrators import AgentInfo, DetectedContext, SkillInfo
+from promptlint.orchestrators.generic import extract_tools
 
 if TYPE_CHECKING:
     from promptlint.gateways.normalizer import NormalizedRequest
@@ -35,14 +36,14 @@ class ClaudeCodeAdapter:
                     agents.append(AgentInfo(name=agent_type, agent_type=agent_type))
 
             # Check message content for system-reminder tags
-            if msg.content and SYSTEM_REMINDER_RE.search(msg.content):
+            if not has_system_reminder and msg.content and SYSTEM_REMINDER_RE.search(msg.content):
                 has_system_reminder = True
 
         # Only match if we found Claude Code signals
         if not skills and not agents and not has_system_reminder:
             return None
 
-        tools = _extract_tools(request)
+        tools = extract_tools(request)
 
         return DetectedContext(
             orchestrator_name="claude-code",
@@ -51,21 +52,3 @@ class ClaudeCodeAdapter:
             agents=agents,
             system_prompt_source="body.system" if request.system_prompt is not None else "",
         )
-
-
-def _extract_tools(request: NormalizedRequest) -> list[ToolInfo]:
-    """Extract tool definitions from the normalized request."""
-    tools: list[ToolInfo] = []
-    for tool_def in request.tools:
-        name = str(tool_def.get("name", ""))
-        if not name:
-            continue
-        # Count parameters from input_schema (Anthropic format)
-        param_count = 0
-        schema = tool_def.get("input_schema")
-        if isinstance(schema, dict):
-            props = schema.get("properties")
-            if isinstance(props, dict):
-                param_count = len(props)
-        tools.append(ToolInfo(name=name, param_count=param_count))
-    return tools
