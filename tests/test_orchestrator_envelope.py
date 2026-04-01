@@ -1,5 +1,14 @@
+from promptlint.gateways.normalizer import NormalizedMessage, NormalizedRequest, ToolCall
 from promptlint.models import ClassifiedChunk
-from promptlint.orchestrators import AgentInfo, DetectedContext, SkillInfo, ToolInfo
+from promptlint.orchestrators import (
+    AgentInfo,
+    DetectedContext,
+    SkillInfo,
+    ToolInfo,
+    clear_adapters,
+    detect,
+    register_default_adapters,
+)
 from promptlint.orchestrators.envelope import (
     EMPTY_FINGERPRINT,
     OrchestratorEnvelope,
@@ -138,3 +147,44 @@ def test_fingerprint_duplicate_instructions() -> None:
     fp_double = compute_fingerprint([chunk, chunk])
     # Different because duplicates are kept (not deduped)
     assert fp_single != fp_double
+
+
+def test_detect_to_envelope_integration() -> None:
+    """Integration: detect() → build_envelope() round trip."""
+    clear_adapters()
+    register_default_adapters()
+    try:
+        request = NormalizedRequest(
+            vendor="anthropic",
+            system_prompt="You are a helpful assistant.",
+            tools=[{"name": "Read", "input_schema": {"type": "object", "properties": {"path": {}}}}],
+            messages=[
+                NormalizedMessage(
+                    role="assistant",
+                    content="",
+                    tool_calls=[ToolCall(name="Skill", input={"skill": "commit"})],
+                ),
+                NormalizedMessage(role="user", content="Please commit my changes."),
+            ],
+            raw_body=b"{}",
+            model_id="claude-sonnet-4-20250514",
+        )
+        ctx = detect(request)
+        assert ctx.orchestrator_name == "claude-code"
+
+        instructions = [_make_chunk("Always use conventional commits")]
+        envelope = build_envelope(
+            analysis_id="integration-test-1",
+            context=ctx,
+            instructions=instructions,
+            model_id=request.model_id,
+        )
+        assert envelope.analysis_id == "integration-test-1"
+        assert envelope.orchestrator_name == "claude-code"
+        assert "commit" in envelope.detected_skills
+        assert "Read" in envelope.detected_tools
+        assert envelope.prompt_fingerprint != EMPTY_FINGERPRINT
+        assert envelope.model_id == "claude-sonnet-4-20250514"
+        assert envelope.timestamp  # auto-populated
+    finally:
+        clear_adapters()

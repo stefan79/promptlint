@@ -22,12 +22,13 @@ frameworks** only. Codex CLI is deferred to [spec 11](11-orchestrator-codex-cli.
 **In scope:**
 - Orchestrator detection (Claude Code vs generic)
 - Skill/tool/agent detection from wire traffic
-- Source attribution on chunks (which skill/section contributed each chunk)
+- `Chunk.source` field added for provenance tracking (populated by spec 13)
 - Prompt fingerprinting (order-independent hash of normalized instruction set)
 - `OrchestratorEnvelope` type linking orchestrator context to analysis
-- Request ID capture from LLM provider response headers
 
 **Out of scope (deferred):**
+- Source attribution population (spec 13 — Per-Source Metrics populates `Chunk.source`)
+- Request ID capture from response headers (requires gateway response handling — TODO)
 - Cross-skill redundancy/contradiction analysis (spec 13 — Per-Source Metrics)
 - Codex CLI adapter (spec 11)
 - Active instrumentation / plugins (spec 08)
@@ -54,7 +55,7 @@ class DetectedContext:
 @dataclass
 class SkillInfo:
     name: str
-    source: str = "passive"         # "passive" or "active" (spec 08)
+    source: Literal["passive", "active"] = "passive"
 
 @dataclass
 class ToolInfo:
@@ -83,12 +84,14 @@ class OrchestratorEnvelope:
     prompt_fingerprint: str         # SHA-256 truncated to 16 hex chars
     request_id: str | None = None   # from LLM provider response headers
     model_id: str | None = None     # from NormalizedRequest
-    timestamp: str = ""             # ISO 8601
+    timestamp: str = ""             # auto-populated with UTC ISO 8601 at construction time
 ```
 
 ### Source attribution on Chunk
 
-Chunks gain an optional `source` field for provenance tracking:
+Chunks gain an optional `source` field for provenance tracking. The field is
+added by this spec but **populated by spec 13** (Per-Source Metrics), which
+implements the attribution rules below using `DetectedContext`:
 
 ```python
 @dataclass
@@ -131,7 +134,7 @@ Detection trigger: request matches Claude Code if any message contains a
 `tool_call` with `name == "Skill"` or `name == "Agent"`, OR if any message
 content contains `<system-reminder>` tags.
 
-### Source attribution rules
+### Source attribution rules (implemented by spec 13)
 
 1. System prompt content: `source = "system"`
 2. Content inside `<system-reminder>` tags: `source = "system-reminder"`
@@ -170,16 +173,18 @@ def compute_fingerprint(instructions: list[ClassifiedChunk]) -> str:
 
 If no instructions are present, return `"0" * 16` (empty fingerprint).
 
-## Request ID capture
+## Request ID capture (deferred — TODO)
 
 When the gateway receives a response from the LLM provider, capture the
-request ID from response headers:
+request ID from response headers. This requires gateway response handling
+which is not yet implemented.
 
 - Anthropic: `request-id` header
 - OpenAI: `x-request-id` header
 - Gemini: `x-goog-request-id` header (if present)
 
 Store in `DetectedContext.request_id` and `OrchestratorEnvelope.request_id`.
+The fields exist but are always `None` until response header capture is added.
 
 ## Integration with gateway
 

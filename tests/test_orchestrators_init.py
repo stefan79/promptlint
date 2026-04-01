@@ -30,6 +30,10 @@ def setup_function() -> None:
     clear_adapters()
 
 
+def teardown_function() -> None:
+    clear_adapters()
+
+
 def test_detect_returns_unknown_no_adapters() -> None:
     ctx = detect(_make_request())
     assert ctx.orchestrator_name == "unknown"

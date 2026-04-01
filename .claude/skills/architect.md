@@ -225,16 +225,35 @@ class OrchestratorContext:
 
 ### DetectedContext — from passive observation (spec 05)
 
-Produced by orchestrator adapters parsing wire traffic.
+Produced by orchestrator adapters parsing wire traffic. Note: the `SkillInfo`,
+`ToolInfo`, and `AgentInfo` types below are defined in `orchestrators/__init__.py`
+and are **distinct** from the same-named types in the AnalysisResult section above
+(which are planned for spec 08 active instrumentation).
 
 ```python
+# In orchestrators/__init__.py — NOT the same as the AnalysisResult-level types
+@dataclass
+class SkillInfo:
+    name: str
+    source: Literal["passive", "active"] = "passive"
+
+@dataclass
+class ToolInfo:
+    name: str
+    param_count: int = 0
+
+@dataclass
+class AgentInfo:
+    name: str
+    agent_type: str = ""
+
 @dataclass
 class DetectedContext:
     orchestrator_name: str          # "claude-code", "generic", "unknown"
     skills: list[SkillInfo]
     tools: list[ToolInfo]
     agents: list[AgentInfo]
-    system_prompt_source: str       # "body.system", "messages[0]", etc.
+    system_prompt_source: str = ""  # "body.system", "messages[0]", etc.
     request_id: str | None = None   # from LLM provider response headers
 ```
 
@@ -251,7 +270,7 @@ class OrchestratorEnvelope:
     prompt_fingerprint: str         # SHA-256 of normalized instructions, 16 hex chars
     request_id: str | None = None
     model_id: str | None = None
-    timestamp: str = ""
+    timestamp: str = ""             # auto-populated with UTC ISO 8601 at construction time
 ```
 
 ## Two-phase pipeline architecture (spec 02)

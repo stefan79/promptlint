@@ -22,7 +22,7 @@ class Chunk:
     start_offset: int
     end_offset: int
     structural_type: str  # "bullet", "paragraph", "xml_block", "tool_desc", "header_content"
-    source: str = ""  # provenance: "system", "skill:<name>", "tool:<name>", "agent:<name>", "user", ""
+    source: str = ""  # TODO(spec-13): populated by per-source metrics; values: "system", "skill:<name>", "tool:<name>", "user", ""
 
 
 @dataclass

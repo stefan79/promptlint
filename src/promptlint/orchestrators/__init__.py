@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Literal, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from promptlint.gateways.normalizer import NormalizedRequest
@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 @dataclass
 class SkillInfo:
     name: str
-    source: str = "passive"  # "passive" or "active" (spec 08)
+    source: Literal["passive", "active"] = "passive"
 
 
 @dataclass
