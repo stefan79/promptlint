@@ -97,11 +97,15 @@ Two observation modes:
 | 02 | [Pipeline DSL](specs/02-pipeline-dsl.md) | Ready for implementation |
 | 03 | [Storage Backends](specs/03-storage-backends.md) | Implemented |
 | 04 | [Gateway Integration](specs/04-gateway-integration.md) | Draft |
-| 05 | [Orchestrator Support (Passive)](specs/05-orchestrator-support.md) | Draft |
+| 05 | [Orchestrator Support (Passive)](specs/05-orchestrator-support.md) | Implemented |
 | 06 | [Configuration Language](specs/06-configuration.md) | Draft |
 | 07 | [Benchmarks](specs/07-benchmarks.md) | Draft, blocked on 02-05 |
 | 08 | [Orchestrator Plugins (Active)](specs/08-orchestrator-plugins.md) | Draft |
 | 09 | [Linting Rules Engine](specs/09-linting-rules.md) | Draft |
+| 10 | [Positional Attention Risk](specs/10-positional-attention.md) | Draft |
+| 11 | [Orchestrator: Codex CLI](specs/11-orchestrator-codex-cli.md) | Draft |
+| 12 | [Orchestrator: OpenCode](specs/12-orchestrator-opencode.md) | Draft |
+| 13 | [Per-Source Metrics](specs/13-per-source-metrics.md) | Draft |
 
 ## Module layout
 
@@ -124,6 +128,16 @@ src/promptlint/
 │   ├── prometheus.py    # Prometheus pushgateway backend
 │   ├── sqlite.py        # SQLite backend
 │   └── webhook.py       # HTTP POST webhook backend
+├── gateways/            # Gateway listeners (spec 04)
+│   ├── __init__.py      # GatewayListener protocol, GatewayInfo, exceptions
+│   ├── normalizer.py    # Vendor-specific → NormalizedRequest
+│   ├── proxy.py         # Built-in FastAPI reverse proxy
+│   └── sdk_middleware.py # httpx transport middleware
+├── orchestrators/       # Orchestrator adapters (spec 05)
+│   ├── __init__.py      # OrchestratorAdapter protocol, registry, data types
+│   ├── claude_code.py   # Claude Code passive detection
+│   ├── generic.py       # Generic adapter (fallback)
+│   └── envelope.py      # OrchestratorEnvelope, prompt fingerprinting
 ├── cli.py               # CLI (analyze, check, diff, pipeline, benchmark, test-backends, proxy)
 └── proxy.py             # FastAPI reverse proxy
 ```

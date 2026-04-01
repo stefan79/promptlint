@@ -223,6 +223,37 @@ class OrchestratorContext:
     prompt_hash: str | None = None
 ```
 
+### DetectedContext — from passive observation (spec 05)
+
+Produced by orchestrator adapters parsing wire traffic.
+
+```python
+@dataclass
+class DetectedContext:
+    orchestrator_name: str          # "claude-code", "generic", "unknown"
+    skills: list[SkillInfo]
+    tools: list[ToolInfo]
+    agents: list[AgentInfo]
+    system_prompt_source: str       # "body.system", "messages[0]", etc.
+    request_id: str | None = None   # from LLM provider response headers
+```
+
+### OrchestratorEnvelope — links orchestrator context to analysis (spec 05)
+
+```python
+@dataclass
+class OrchestratorEnvelope:
+    analysis_id: str
+    orchestrator_name: str
+    detected_skills: list[str]
+    detected_tools: list[str]
+    detected_agents: list[str]
+    prompt_fingerprint: str         # SHA-256 of normalized instructions, 16 hex chars
+    request_id: str | None = None
+    model_id: str | None = None
+    timestamp: str = ""
+```
+
 ## Two-phase pipeline architecture (spec 02)
 
 Every pipeline runs in two phases:
@@ -337,10 +368,10 @@ src/promptlint/
 │   ├── normalizer.py        # vendor-specific → NormalizedRequest
 │   └── sdk_middleware.py
 ├── orchestrators/           # Orchestrator adapters (spec 05)
-│   ├── __init__.py
-│   ├── claude_code.py       # passive detection
-│   ├── codex.py
-│   └── generic.py
+│   ├── __init__.py          # OrchestratorAdapter protocol, registry, SkillInfo/ToolInfo/AgentInfo
+│   ├── claude_code.py       # Claude Code passive detection
+│   ├── generic.py           # Generic adapter (fallback)
+│   └── envelope.py          # OrchestratorEnvelope, compute_fingerprint
 ├── pipeline.py              # Pipeline runner (spec 02)
 ├── prompt_parser.py         # Input parsing
 └── cli.py                   # CLI commands
