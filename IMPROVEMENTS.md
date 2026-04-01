@@ -284,6 +284,78 @@ flags. No guidance to keep CI flags consistent with pyproject.toml.
 **Suggested fix:** Add: "`mypy src/` without `--ignore-missing-imports` — use
 `pyproject.toml` overrides for third-party packages."
 
+## PR #2 — Implement spec 03: storage backend emitters (2026-03-29)
+
+### Architect skill Feedback definition diverges from implementation
+
+**Trigger:** The architect skill defines `Feedback` with `id: str` (uuid4) and `timestamp: datetime`, but the implementation in `models.py` has no `id` field and uses `timestamp: str` (ISO format string from a default factory). Emitter code and tests build against the actual implementation, not the architect definition.
+
+**Current state:** Architect skill (`architect.md:152-160`) shows:
+```python
+class Feedback:
+    id: str                          # uuid4
+    analysis_id: str                 # links to AnalysisResult.id
+    timestamp: datetime
+```
+Implementation (`models.py:44-50`) has no `id`, timestamp is `str`.
+
+**Impacted files:**
+- `.claude/skills/architect.md` — Feedback definition
+
+**Suggested fix:** Update the Feedback definition in the architect skill to match the implementation: remove `id` field (or mark as planned), change `timestamp` to `str` with ISO format default. This is the same class of issue as the AnalysisResult divergence — the "current vs. planned" split suggested for AnalysisResult should also apply to Feedback.
+
+---
+
+### CLAUDE.md testing section missing integration test infrastructure
+
+**Trigger:** PR adds `docker-compose.test.yml`, `@pytest.mark.integration` marker, `--integration` pytest flag, integration test directory (`tests/integration/`), and a CI integration job — none of which are documented in CLAUDE.md's testing or linting sections.
+
+**Current state:** CLAUDE.md testing section says: "Tests that load ML models: mark with `@pytest.mark.slow`" and linting section says "`pytest -m 'not slow'` before push". No mention of integration tests, Docker services, or the `tests/integration/` directory.
+
+**Impacted files:**
+- `CLAUDE.md` — Testing section and Linting section
+
+**Suggested fix:** Add to testing section: "Integration tests requiring Docker services (ES, Prometheus): mark with `@pytest.mark.integration`, place in `tests/integration/`. Run with `pytest --integration`. Docker services defined in `docker-compose.test.yml`." Update the linting section to: "`pytest -m 'not slow and not integration'` before push."
+
+---
+
+### Code-review skill missing `type: ignore` audit
+
+**Trigger:** PR adds four `# type: ignore[arg-type]` comments across `__init__.py` and `pipeline.py` without documenting why the suppression is needed. These suppress a real type mismatch between `transformers` model types and the function signatures — the correct fix may be to adjust the type annotations.
+
+**Current state:** Code-review skill checks "type annotations on all functions" and "mypy with `disallow_untyped_defs`" but has no guidance on reviewing `type: ignore` comments.
+
+**Impacted files:**
+- `.claude/skills/code-review.md` — Python Best Practices section
+
+**Suggested fix:** Add: "Flag `# type: ignore` comments without an explanatory comment. Each suppression should document why it's needed and link to the upstream issue if it's a third-party typing gap. Prefer narrowing the suppression (e.g., `[arg-type]`) over bare `# type: ignore`."
+
+---
+
+### Spec-review skill missing config validation completeness check
+
+**Trigger:** P2 review comment flagged that non-mapping backend configs (e.g., a scalar string) would crash `_cmd_test_backends` with an unhelpful `AttributeError`. The spec says nothing about what constitutes valid vs. invalid config shapes, so the implementer had to discover this edge case during code review.
+
+**Current state:** Spec-review skill section 5 (Implementation Readiness) asks "Are configuration options listed with defaults?" but doesn't check whether the spec defines what invalid config looks like or how to handle it.
+
+**Impacted files:**
+- `.claude/skills/spec-review.md` — section 5 (Implementation Readiness)
+
+**Suggested fix:** Add to section 5: "For specs that define configuration schemas, does the spec specify the expected shape (mapping vs. scalar vs. list) and what happens when config is malformed? At minimum: type constraints and a clear error message."
+
+---
+
+### CLAUDE.md module layout missing tests directory structure
+
+**Trigger:** PR adds `tests/integration/` as a new directory convention alongside the existing `tests/test_*.py` flat structure. CLAUDE.md documents `src/promptlint/` layout but not `tests/` layout. A future implementer wouldn't know integration tests go in a subdirectory.
+
+**Current state:** CLAUDE.md says "Test files mirror source: `src/promptlint/foo.py` → `tests/test_foo.py`" but doesn't document `tests/integration/` or the convention for non-mirrored test files (e.g., `test_cli_test_backends.py` doesn't mirror any single source file).
+
+**Impacted files:**
+- `CLAUDE.md` — Module layout section
+
+**Suggested fix:** Add a `tests/` layout section: "Unit tests mirror source (`test_foo.py`). Integration tests requiring external services go in `tests/integration/`. CLI command tests use `test_cli_<command>.py`."
+
 ## PR #3 — Spec 04 Gateway Integration Review (2026-03-30)
 
 ### `should_block` duplicated across 3 gateway classes
