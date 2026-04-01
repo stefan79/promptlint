@@ -101,6 +101,7 @@ Two observation modes:
 | 06 | [Configuration Language](specs/06-configuration.md) | Draft |
 | 07 | [Benchmarks](specs/07-benchmarks.md) | Draft, blocked on 02-05 |
 | 08 | [Orchestrator Plugins (Active)](specs/08-orchestrator-plugins.md) | Draft |
+| 09 | [Linting Rules Engine](specs/09-linting-rules.md) | Draft |
 
 ## Module layout
 

@@ -266,11 +266,11 @@ def _cmd_test_backends(args: argparse.Namespace) -> None:
 def _cmd_proxy(args: argparse.Namespace) -> None:
     import uvicorn
 
-    from promptlint.proxy import create_app
+    from promptlint.gateways.proxy import BuiltinProxy
 
-    app = create_app(
+    proxy = BuiltinProxy(
         target=args.target,
-        fail_on=args.fail_on,
+        block_on=args.fail_on,
         warn_instructions=args.warn_instructions,
         critical_instructions=args.critical_instructions,
         warn_density=args.warn_density,
@@ -278,6 +278,7 @@ def _cmd_proxy(args: argparse.Namespace) -> None:
         classification_threshold=args.classification_threshold,
         contradiction_threshold=args.contradiction_threshold,
     )
+    app = proxy.create_app()
     print(f"promptlint proxy listening on http://localhost:{args.port}")
     print(f"Forwarding to {args.target}")
     if args.fail_on:

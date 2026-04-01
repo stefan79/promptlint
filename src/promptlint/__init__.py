@@ -26,16 +26,22 @@ class PromptAnalyzer:
         self._load_models()
 
     def _load_models(self) -> None:
-        # Load DeBERTa once, share between classifier and contradiction detector
-        self._nli_tokenizer = AutoTokenizer.from_pretrained(self.config.classifier_model)
-        self._nli_model = AutoModelForSequenceClassification.from_pretrained(self.config.classifier_model)
-        self._nli_model.to(self.config.device)
-        self._nli_model.eval()
+        # Classifier: 2-class zero-shot model (entailment / not_entailment)
+        cls_tokenizer = AutoTokenizer.from_pretrained(self.config.classifier_model)
+        cls_model = AutoModelForSequenceClassification.from_pretrained(self.config.classifier_model)
+        cls_model.to(self.config.device)
+        cls_model.eval()
 
-        self.classifier = InstructionClassifier(self.config, self._nli_model, self._nli_tokenizer)  # type: ignore[arg-type]
+        # Contradiction: 3-class NLI cross-encoder (contradiction / entailment / neutral)
+        con_tokenizer = AutoTokenizer.from_pretrained(self.config.contradiction_model)
+        con_model = AutoModelForSequenceClassification.from_pretrained(self.config.contradiction_model)
+        con_model.to(self.config.device)
+        con_model.eval()
+
+        self.classifier = InstructionClassifier(self.config, cls_model, cls_tokenizer)  # type: ignore[arg-type]
         self.embedder = InstructionEmbedder(self.config)
         self.redundancy_detector = RedundancyDetector(self.config)
-        self.contradiction_detector = ContradictionDetector(self.config, self._nli_model, self._nli_tokenizer)  # type: ignore[arg-type]
+        self.contradiction_detector = ContradictionDetector(self.config, con_model, con_tokenizer)  # type: ignore[arg-type]
 
     def analyze(
         self,

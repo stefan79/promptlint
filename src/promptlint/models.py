@@ -5,6 +5,10 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from promptlint.gateways import GatewayInfo
 
 
 class PromptLintError(Exception):
@@ -76,6 +80,9 @@ class AnalysisResult:
     warnings: list[str] = field(default_factory=list)
     severity: str = "ok"
 
+    # Gateway context (set when analysis runs through a gateway)
+    gateway: GatewayInfo | None = None
+
     def to_json(self) -> str:
         return json.dumps(asdict(self), indent=2, default=str)
 
@@ -131,8 +138,9 @@ class AnalysisResult:
         return "\n".join(lines)
 
     def raise_if(self, severity: str = "critical") -> None:
-        severity_order = {"ok": 0, "warning": 1, "critical": 2}
-        if severity_order.get(self.severity, 0) >= severity_order.get(severity, 0):
+        from promptlint.gateways import SEVERITY_ORDER
+
+        if SEVERITY_ORDER.get(self.severity, 0) >= SEVERITY_ORDER.get(severity, 0):
             raise PromptLintError(
                 f"Prompt severity is {self.severity}: "
                 f"{self.instruction_count} instructions, "
