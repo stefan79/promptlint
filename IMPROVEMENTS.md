@@ -875,3 +875,128 @@ TOCTOU race (check-then-insert is not atomic).
 **Suggested fix:** Add a `threading.Lock` around mutations and iteration, or use
 an immutable-swap pattern (build a new tuple and assign atomically). The lock is
 simpler and matches the existing `threading.Semaphore` pattern in gateways.
+
+Now I have the full picture. Here are the findings for skills/agents/rules/CLAUDE.md improvements:
+
+## PR #4 — Implement spec 05: orchestrator passive detection (2026-04-02)
+
+### Spec-review skill should check for input validation at wire-data boundaries
+
+**Trigger:** Code review found a P2: `tc.input` from normalized wire data could
+be non-dict, causing `AttributeError` in `ClaudeCodeAdapter.detect()`. The spec
+and architect skill both showed `tc.input.get("skill")` without any guard,
+giving the implementer no signal that validation was needed. The spec-review
+skill's "Review-proofing" section didn't catch this class of issue.
+
+**Current state:** The spec-review skill's §6 "Review-proofing" checks for
+resource management, type safety, test coverage, and CI/CD — but not for
+defensive handling of data from external/untrusted sources (wire traffic, user
+input, API responses). The architect skill's "Claude Code passive detection"
+code snippet shows bare `.get()` on `tc.input` with no `isinstance` guard.
+
+**Impacted files:**
+- `.claude/skills/spec-review.md` — §6 Review-proofing
+- `.claude/skills/architect.md` — "Claude Code passive detection" section
+
+**Suggested fix:** Add to spec-review §6 Review-proofing: "External data
+validation: does the spec identify which inputs come from untrusted sources
+(wire traffic, API responses, user config)? Are defensive checks specified for
+fields that could be malformed (wrong type, missing keys, unexpected structure)?
+Any Protocol method that processes `NormalizedRequest` fields or tool call
+inputs operates on external data." Also update the architect skill's Claude Code
+detection snippet to include the `isinstance(tc.input, dict)` guard as the
+canonical pattern.
+
+---
+
+### Spec-review skill should check registry/factory idempotency requirements
+
+**Trigger:** Code review found a P2: `register_default_adapters()` no-oped when
+any adapter was pre-registered, preventing built-in adapters from being added in
+plugin scenarios. The spec didn't specify idempotency semantics for the
+registration function, and spec-review didn't flag this gap.
+
+**Current state:** The spec-review skill's §5 "Implementation readiness" checks
+for open questions, field definitions, error/edge cases, config options, and
+testing strategy — but doesn't check for behavioral contracts of registration or
+factory functions (idempotency, ordering guarantees, interaction with
+pre-existing state).
+
+**Impacted files:**
+- `.claude/skills/spec-review.md` — §5 Implementation readiness
+
+**Suggested fix:** Add to spec-review §5 Implementation readiness: "Registry and
+factory patterns: if the spec defines a registry (adapter registry, emitter
+factory, stage registry), are registration semantics specified? Check for:
+idempotency (what happens when called twice?), interaction with pre-existing
+entries (do custom registrations survive default registration?), ordering
+guarantees (first-match-wins documented?), and cleanup/reset behavior."
+
+---
+
+### Architect skill has colliding type names across spec boundaries
+
+**Trigger:** The architect skill now defines `SkillInfo`, `ToolInfo`, and
+`AgentInfo` in *two* separate sections with different field sets — once under
+AnalysisResult (spec 08, planned) and once under DetectedContext (spec 05,
+implemented). A note was added in this PR, but the collision is structural.
+
+**Current state:** The architect skill includes a comment: "the `SkillInfo`,
+`ToolInfo`, and `AgentInfo` types below are defined in `orchestrators/__init__.py`
+and are **distinct** from the same-named types in the AnalysisResult section
+above." This relies on implementers reading the comment carefully. Code
+generators and future spec implementations may import the wrong one.
+
+**Impacted files:**
+- `.claude/skills/architect.md` — DetectedContext and AnalysisResult sections
+- `specs/08-orchestrator-plugins.md` — will need to resolve naming when implemented
+
+**Suggested fix:** Add a "Naming conventions" section to the architect skill that
+explicitly lists same-name types with different definitions and their canonical
+import paths. Recommend that spec 08 implementation either (a) renames the
+AnalysisResult-level types (e.g., `AnalysisSkillInfo`) or (b) consolidates into
+one definition with an optional `instruction_count` field. Flag this as a
+required pre-implementation decision in spec 08.
+
+---
+
+### CLAUDE.md spec 07 status still says "blocked on 02-05"
+
+**Trigger:** This PR updated spec 05's status to "Implemented" in CLAUDE.md, but
+spec 07 (Benchmarks) still reads "Draft, blocked on 02-05". With spec 05 now
+implemented, the blocker description is stale.
+
+**Current state:** CLAUDE.md spec table row: `| 07 | Benchmarks | Draft, blocked on 02-05 |`
+
+**Impacted files:**
+- `CLAUDE.md` — spec status table
+
+**Suggested fix:** Update to `"Draft, blocked on 02-04"` (specs 01, 03, 05 are
+implemented; specs 02 and 04 remain). Or if spec 02 (Pipeline DSL) is the
+primary remaining blocker, simplify to `"Draft, blocked on 02+04"`.
+
+---
+
+### Code-review skill should explicitly check adapter/protocol boundary validation
+
+**Trigger:** Both P2 review findings in this PR were about defensive handling at
+protocol boundaries — malformed tool call inputs and registration idempotency.
+The code-review skill checks "edge case coverage" by referencing test-rules, but
+doesn't specifically call out protocol/adapter boundary validation as a review
+target.
+
+**Current state:** Code-review skill §3 "Edge case coverage" says: "Every
+function with logic has tests for: empty input, single element, boundary
+values, and malformed input." This is generic — it doesn't highlight that
+`Protocol` implementations receiving external data (gateway, orchestrator
+adapters) need stronger input validation than internal pipeline stages.
+
+**Impacted files:**
+- `.claude/skills/code-review.md` — §3 Edge case coverage
+
+**Suggested fix:** Add to code-review §3: "Protocol boundary validation: code
+implementing `OrchestratorAdapter`, `GatewayListener`, or `Emitter` protocols
+processes data from external sources. Verify that inputs from
+`NormalizedRequest` (tool call inputs, message content, tool definitions) are
+type-checked before field access. Registry/factory functions should be tested
+for idempotency and interaction with pre-existing state."
