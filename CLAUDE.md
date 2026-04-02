@@ -98,7 +98,7 @@ Two observation modes:
 | 03 | [Storage Backends](specs/03-storage-backends.md) | Implemented |
 | 04 | [Gateway Integration](specs/04-gateway-integration.md) | Draft |
 | 05 | [Orchestrator Support (Passive)](specs/05-orchestrator-support.md) | Implemented |
-| 06 | [Configuration Language](specs/06-configuration.md) | Draft |
+| 06 | [Configuration Language](specs/06-configuration.md) | Implemented |
 | 07 | [Benchmarks](specs/07-benchmarks.md) | Draft, blocked on 02-05 |
 | 08 | [Orchestrator Plugins (Active)](specs/08-orchestrator-plugins.md) | Draft |
 | 09 | [Linting Rules Engine](specs/09-linting-rules.md) | Draft |
@@ -114,6 +114,7 @@ src/promptlint/
 ├── __init__.py          # PromptAnalyzer (public API)
 ├── models.py            # dataclasses (Chunk, ClassifiedChunk, etc.)
 ├── config.py            # PromptLintConfig (all thresholds)
+├── config_loader.py     # YAML config discovery, parsing, validation (spec 06)
 ├── chunker.py           # Stage 1: structural segmentation
 ├── classifier.py        # Stage 2: DeBERTa zero-shot NLI
 ├── embedder.py          # Stage 3: MiniLM sentence embeddings
