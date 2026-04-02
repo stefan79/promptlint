@@ -1,6 +1,6 @@
 # 05 — Orchestrator Support (Passive Observation)
 
-> Status: **Draft — open questions below**
+> Status: **Implemented**
 >
 > See also: [spec 08 — Orchestrator Plugins](08-orchestrator-plugins.md) for
 > **active instrumentation** (hooks, skills, explicit tagging). This spec
@@ -10,118 +10,253 @@
 ## Goal
 
 Enable promptlint to understand orchestrator-level concerns from gateway
-traffic alone: detect skills, identify prompt structure, and emit enriched
-datasets. No orchestrator modification required.
+traffic alone: detect which orchestrator is sending requests, identify skills
+and tools, attribute chunks to their source, and compute a stable prompt
+fingerprint. No orchestrator modification required.
 
-Target orchestrators: **Claude Code**, **Codex CLI**, and generic
-agent frameworks.
+Target orchestrators for this spec: **Claude Code** and **generic agent
+frameworks** only. Codex CLI is deferred to [spec 11](11-orchestrator-codex-cli.md).
 
-## Core capabilities
+## Scope
 
-### 1. Skill detection
+**In scope:**
+- Orchestrator detection (Claude Code vs generic)
+- Skill/tool/agent detection from wire traffic
+- `Chunk.source` field added for provenance tracking (populated by spec 13)
+- Prompt fingerprinting (order-independent hash of normalized instruction set)
+- `OrchestratorEnvelope` type linking orchestrator context to analysis
 
-Orchestrators like Claude Code dynamically assemble prompts from skills,
-tools, constitutions, and system instructions. promptlint should:
+**Out of scope (deferred):**
+- Source attribution population (spec 13 — Per-Source Metrics populates `Chunk.source`)
+- Request ID capture from response headers (requires gateway response handling — TODO)
+- Cross-skill redundancy/contradiction analysis (spec 13 — Per-Source Metrics)
+- Codex CLI adapter (spec 11)
+- Active instrumentation / plugins (spec 08)
+- Privacy filtering / PII redaction (include user messages by default)
+- Prompt drift tracking over time (future work)
+- Feedback loop calibration (future work)
 
-- Parse skill boundaries from `<system-reminder>` tags, XML blocks, or
-  markdown sections injected by the orchestrator.
-- Label each instruction with its **source skill** (e.g. "commit skill",
-  "review-pr skill", "base system prompt").
-- Detect skill-to-skill redundancy and contradiction (cross-skill analysis).
+## Data types
 
-### 2. Prompt identification
+### DetectedContext
 
-- Fingerprint assembled prompts (hash of normalized instruction set) so
-  repeated invocations of the same prompt can be grouped.
-- Track prompt **drift** over time (skills added/removed, instruction count
-  changes).
-- Correlate prompt fingerprints with outcomes (if feedback is available).
+Produced by passive detection. Contains what we can infer from the wire.
 
-### 3. Feedback loop
+```python
+@dataclass
+class DetectedContext:
+    orchestrator_name: str          # "claude-code", "generic", "unknown"
+    skills: list[SkillInfo]         # detected skill invocations
+    tools: list[ToolInfo]           # detected tool definitions
+    agents: list[AgentInfo]         # detected agent launches
+    system_prompt_source: str       # "body.system", "messages[0]", "configurable"
+    request_id: str | None = None   # from LLM provider response headers
 
-- Accept human feedback on analysis results:
-  - "This was actually not a contradiction" (false positive)
-  - "This instruction was important but got buried" (attention signal)
-  - "This prompt worked well / poorly" (outcome signal)
-- Store feedback linked to prompt fingerprint + analysis result.
-- Use accumulated feedback to calibrate thresholds over time.
+@dataclass
+class SkillInfo:
+    name: str
+    source: Literal["passive", "active"] = "passive"
 
-### 4. Dataset emission
+@dataclass
+class ToolInfo:
+    name: str
+    param_count: int = 0
 
-- Emit structured datasets (JSONL) containing:
-  - Assembled prompt (full text + structured breakdown)
-  - Analysis results (instructions, redundancy groups, contradictions)
-  - Human feedback (if any)
-  - Metadata (orchestrator, model, timestamp, prompt fingerprint)
-- Datasets can feed into:
-  - Prompt optimization pipelines
-  - Fine-tuning data curation
-  - Observability dashboards (via storage backends from spec 03)
+@dataclass
+class AgentInfo:
+    name: str
+    agent_type: str = ""            # e.g. "subagent", "parallel"
+```
 
-## Passive detection strategies
+### OrchestratorEnvelope
 
-What we can infer from the wire without orchestrator cooperation:
+Links orchestrator context to an AnalysisResult without polluting AnalysisResult
+fields. One envelope per analysis.
 
-### Claude Code
+```python
+@dataclass
+class OrchestratorEnvelope:
+    analysis_id: str                # links to AnalysisResult (via external ID)
+    orchestrator_name: str          # "claude-code", "generic", "unknown"
+    detected_skills: list[str]      # skill names
+    detected_tools: list[str]       # tool names
+    detected_agents: list[str]      # agent names
+    prompt_fingerprint: str         # SHA-256 truncated to 16 hex chars
+    request_id: str | None = None   # from LLM provider response headers
+    model_id: str | None = None     # from NormalizedRequest
+    timestamp: str = ""             # auto-populated with UTC ISO 8601 at construction time
+```
 
-| Signal | Detection method | Reliability |
-|--------|-----------------|-------------|
-| Skill invocation | `tool_use` with `name == "Skill"`, skill name in `input.skill` | High |
-| Skill content | `tool_result` following Skill call contains full SKILL.md | High |
-| Agent launch | `tool_use` with `name == "Agent"`, type in `input.subagent_type` | High |
-| System reminders | Parse `<system-reminder>` tags from message content | High |
-| Skill-to-instruction attribution | Heuristic: instructions in tool_result after Skill call belong to that skill | Medium |
-| Base system prompt vs skills | System prompt is in `body["system"]`; skills arrive later via tool calls | Medium |
-| Constitution | Usually in system prompt, no explicit marker | Low |
+### Source attribution on Chunk
 
-### Codex CLI
+Chunks gain an optional `source` field for provenance tracking. The field is
+added by this spec but **populated by spec 13** (Per-Source Metrics), which
+implements the attribution rules below using `DetectedContext`:
 
-| Signal | Detection method | Reliability |
-|--------|-----------------|-------------|
-| System prompt | `messages[0]` where `role == "system"` | High |
-| Tool definitions | `tools[]` array | High |
-| Skill boundaries | TBD — Codex format not yet analyzed | Unknown |
+```python
+@dataclass
+class Chunk:
+    text: str
+    source_section: str
+    start_offset: int
+    end_offset: int
+    structural_type: str
+    source: str = ""                # "system", "skill:<name>", "tool:<name>", "user", ""
+```
 
-### Generic agent frameworks
+## Orchestrator adapter protocol
 
-Configurable: user provides marker patterns (regex/xpath) in pipeline config.
+```python
+class OrchestratorAdapter(Protocol):
+    name: str
 
-## Orchestrator adapters
+    def detect(self, request: NormalizedRequest) -> DetectedContext | None: ...
+```
 
-| Orchestrator | Skill marker | Prompt structure |
-|-------------|-------------|-----------------|
-| **Claude Code** | `Skill` tool calls, `<system-reminder>` tags | system + tools + skills (via tool calls) + user |
-| **Codex CLI** | TBD | system (in messages) + tools + user |
-| **Generic agent** | Configurable markers (regex/xpath) | Configurable |
+Each adapter inspects a `NormalizedRequest` and returns a `DetectedContext` if
+it recognizes the orchestrator's patterns, or `None` if it does not match.
 
-## Limitations of passive mode
+Adapters are tried in registration order. First match wins.
 
-These require [spec 08 — active plugins](08-orchestrator-plugins.md):
+## Claude Code adapter
 
-- **Orchestrator version** — not in API payload
-- **Exact instruction attribution** — which skill contributed which instruction in the system prompt
-- **User feedback** — needs an in-orchestrator command
-- **Session identity** — no session header on the wire
+Detection signals (all from `NormalizedRequest.messages`):
 
-## Open questions
+| Signal | How to detect | What to extract |
+|--------|--------------|-----------------|
+| Skill invocation | `tool_call.name == "Skill"` | `tool_call.input["skill"]` as skill name |
+| Agent launch | `tool_call.name == "Agent"` | `tool_call.input.get("subagent_type", "agent")` |
+| System reminders | `<system-reminder>` tags in any message content | Content between tags (skill/context boundary) |
+| System prompt | `NormalizedRequest.system_prompt` is not None | Source = "system" |
+| Tool definitions | `NormalizedRequest.tools` list | Tool names and parameter counts |
 
-1. **Prompt fingerprinting** — hash the raw text, or hash the normalized
-   instruction set (order-independent)? Raw text changes with every user
-   message; instruction set is more stable.
+Detection trigger: request matches Claude Code if any message contains a
+`tool_call` with `name == "Skill"` or `name == "Agent"`, OR if any message
+content contains `<system-reminder>` tags.
 
-2. **Dataset schema** — what fields are mandatory vs optional? Should we align
-   with an existing format (HuggingFace datasets, JSONL conventions)?
+### Source attribution rules (implemented by spec 13)
 
-3. **Privacy** — assembled prompts may contain user messages with PII.
-   Redaction? Opt-in only for user message inclusion?
+1. System prompt content: `source = "system"`
+2. Content inside `<system-reminder>` tags: `source = "system-reminder"`
+3. Tool result content following a `Skill` tool call: `source = "skill:<name>"`
+4. Tool result content following an `Agent` tool call: `source = "agent:<name>"`
+5. User messages: `source = "user"`
+6. Everything else: `source = ""`
 
-4. **Codex CLI** — how does Codex structure its prompts? Need to reverse-
-   engineer or find docs. Is the prompt format stable enough to parse?
+## Generic adapter
 
-5. **Cross-skill analysis** — should this be a separate pipeline stage, or
-   a post-processing step on top of the existing redundancy/contradiction
-   detectors?
+Matches any request that no other adapter claims. Always returns a
+`DetectedContext` with `orchestrator_name = "generic"`.
 
-6. **Passive + active merge** — when spec 08 plugin provides explicit context,
-   how does it override or supplement passive detection? Active wins on
-   conflict, but do we keep both for comparison?
+Extracts tools from `NormalizedRequest.tools` and sets
+`system_prompt_source` based on vendor.
+
+## Prompt fingerprinting
+
+Compute a stable fingerprint from the normalized instruction set:
+
+1. Collect all instruction texts from `AnalysisResult.instructions`
+2. Normalize: lowercase, strip whitespace, collapse internal whitespace
+3. Sort alphabetically
+4. Join with newline separator
+5. SHA-256 hash, truncate to first 16 hex characters
+
+```python
+def compute_fingerprint(instructions: list[ClassifiedChunk]) -> str:
+    texts = sorted(
+        " ".join(chunk.text.lower().split())
+        for chunk in instructions
+    )
+    joined = "\n".join(texts)
+    return hashlib.sha256(joined.encode()).hexdigest()[:16]
+```
+
+If no instructions are present, return `"0" * 16` (empty fingerprint).
+
+## Request ID capture (deferred — TODO)
+
+When the gateway receives a response from the LLM provider, capture the
+request ID from response headers. This requires gateway response handling
+which is not yet implemented.
+
+- Anthropic: `request-id` header
+- OpenAI: `x-request-id` header
+- Gemini: `x-goog-request-id` header (if present)
+
+Store in `DetectedContext.request_id` and `OrchestratorEnvelope.request_id`.
+The fields exist but are always `None` until response header capture is added.
+
+## Integration with gateway
+
+The orchestrator detection runs inside the gateway after normalization, before
+or after pipeline analysis:
+
+```
+raw_request → normalize → NormalizedRequest
+                               │
+                               ├──▶ OrchestratorAdapter.detect() → DetectedContext
+                               │
+                               └──▶ pipeline.analyze() → AnalysisResult
+                                         │
+                                         ▼
+                              compute_fingerprint(result.instructions)
+                                         │
+                                         ▼
+                              OrchestratorEnvelope(analysis_id, context, fingerprint)
+```
+
+The gateway is responsible for:
+1. Running adapter detection on NormalizedRequest
+2. Running the analysis pipeline
+3. Computing the prompt fingerprint from analysis results
+4. Constructing the OrchestratorEnvelope
+5. Passing envelope alongside AnalysisResult to emitters (future: spec 03 extension)
+
+For this spec, the envelope is logged. Emitter integration is future work.
+
+## File organization
+
+```
+src/promptlint/orchestrators/
+├── __init__.py          # OrchestratorAdapter protocol, detect(), SkillInfo/ToolInfo/AgentInfo
+├── claude_code.py       # ClaudeCodeAdapter
+├── generic.py           # GenericAdapter
+├── envelope.py          # OrchestratorEnvelope, compute_fingerprint
+```
+
+## Testing strategy
+
+Unit tests (fast, no ML models):
+- `tests/test_orchestrator_claude_code.py`: Claude Code detection with various message patterns
+- `tests/test_orchestrator_generic.py`: Generic adapter fallback behavior
+- `tests/test_orchestrator_envelope.py`: Fingerprinting, envelope construction
+- `tests/test_orchestrators_init.py`: Adapter registry, detection dispatch
+
+Test cases per adapter:
+- Happy path: typical Claude Code request with skills, tools, agents
+- No skills: plain Anthropic request (should fall through to generic)
+- Empty messages: request with no messages
+- Mixed signals: request with system-reminder tags but no Skill tool calls
+- Malformed tool calls: missing input fields, empty names
+- Fingerprinting: same instructions in different order produce same hash
+- Fingerprinting: empty instruction list produces zero hash
+
+## Resolved decisions
+
+1. **Prompt fingerprinting**: Hash normalized instruction set (order-independent,
+   SHA-256 truncated to 16 hex). Also capture request ID from provider response
+   headers as tracing metadata.
+
+2. **Dataset schema**: Separate `OrchestratorEnvelope` type. Orchestrator
+   context is static per request; AnalysisResult stays clean. Linked by
+   analysis_id.
+
+3. **Privacy**: Include user messages by default. No opt-out for now.
+
+4. **Codex CLI**: Deferred to spec 11. Only Claude Code + generic adapters here.
+
+5. **Cross-skill analysis**: Not in scope. Whole-prompt metrics only. Chunks get
+   `source` attribution so spec 13 (Per-Source Metrics) can use it later.
+
+6. **Passive/active merge**: Active wins on conflict, passive provides fallback.
+   Interface defined here; spec 08 fills in active detection.

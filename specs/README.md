@@ -12,3 +12,8 @@
 | 06 | [Configuration Language](06-configuration.md) | Glue layer — references pipelines, backends, gateways, and orchestrators. Must know the surface area of everything it wires together. |
 | 07 | [Benchmarks](07-benchmarks.md) | Requires full round-trip integration (orchestrator → gateway → pipeline → backend) before real-world benchmarks are meaningful. Extracted from 01. |
 | 08 | [Orchestrator Plugins (Active)](08-orchestrator-plugins.md) | Install hooks/skills in orchestrators for explicit tagging, version reporting, and in-orchestrator feedback. Enriches passive observation from 05. |
+| 09 | [Linting Rules Engine](09-linting-rules.md) | Configurable rules for prompt quality checks. |
+| 10 | [Positional Attention Risk](10-positional-attention.md) | "Lost in the middle" detection — flag instructions in low-attention zones. Depends on 01+05. |
+| 11 | [Orchestrator: Codex CLI](11-orchestrator-codex-cli.md) | Passive adapter for OpenAI Codex CLI. Depends on 04+05. |
+| 12 | [Orchestrator: OpenCode](12-orchestrator-opencode.md) | Passive adapter for OpenCode. Depends on 04+05. |
+| 13 | [Per-Source Metrics](13-per-source-metrics.md) | Break down metrics by source (skill, tool, agent, user). Cross-source contradiction/redundancy detection. Depends on 01+05. |

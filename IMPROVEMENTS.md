@@ -759,3 +759,119 @@ correctly.
 verify they forward all parameters from the old API to the new one. Check that
 renamed parameters are mapped (not silently dropped via `**kwargs`). Test that
 the shim produces identical behavior to the old code for all documented use cases."
+
+## PR #4 — Spec 05 Orchestrator Support Review (2026-04-01)
+
+### `_make_request` test helper duplicated across 3 orchestrator test files
+
+**Trigger:** `/simplify` code reuse review found identical `_make_request()`
+factory functions in `test_orchestrator_claude_code.py`,
+`test_orchestrator_generic.py`, and `test_orchestrators_init.py` with minor
+signature differences (default vendor, presence of model_id).
+
+**Current state:** Three copies construct `NormalizedRequest` with identical
+body logic. Adding a field to `NormalizedRequest` requires updating all three.
+
+**Impacted files:**
+- `tests/test_orchestrator_claude_code.py`
+- `tests/test_orchestrator_generic.py`
+- `tests/test_orchestrators_init.py`
+
+**Suggested fix:** Add `pythonpath = ["tests"]` to `pyproject.toml`
+`[tool.pytest.ini_options]`, create `tests/helpers.py` with shared
+`make_normalized_request()`, and import from each test file. Alternatively,
+add as a pytest fixture factory in `tests/conftest.py`.
+
+---
+
+### `AgentInfo.name` and `AgentInfo.agent_type` always set to same value
+
+**Trigger:** `/simplify` code quality review found that `claude_code.py` always
+sets `AgentInfo(name=agent_type, agent_type=agent_type)`, making the two fields
+carry identical information.
+
+**Current state:** `AgentInfo` has both `name: str` and `agent_type: str = ""`.
+In all current usage, `name` is set to the same value as `agent_type`.
+
+**Impacted files:**
+- `src/promptlint/orchestrators/__init__.py` — `AgentInfo` dataclass
+- `src/promptlint/orchestrators/claude_code.py`
+
+**Suggested fix:** Either remove `name` and rename `agent_type` to `name`, or
+document the intended semantic distinction (e.g., `name` = display name,
+`agent_type` = classification). If spec 08 active plugins provide richer agent
+metadata, the distinction may become meaningful — add a comment explaining this.
+
+---
+
+### Stringly-typed orchestrator names across 4 files
+
+**Trigger:** `/simplify` code quality review flagged `"claude-code"`, `"generic"`,
+`"unknown"` as raw string literals repeated across `__init__.py`, `claude_code.py`,
+`generic.py`, and `envelope.py` with no shared constant or `Literal` type.
+
+**Current state:** A typo in any one location (e.g., `"claude_code"` vs
+`"claude-code"`) would silently break adapter matching.
+
+**Impacted files:**
+- `src/promptlint/orchestrators/__init__.py`
+- `src/promptlint/orchestrators/claude_code.py`
+- `src/promptlint/orchestrators/generic.py`
+
+**Suggested fix:** Use `Literal["claude-code", "generic", "unknown"]` for
+`orchestrator_name` in `DetectedContext` and `OrchestratorEnvelope`. This gives
+mypy enforcement at all callsites. Same treatment as the existing suggestion for
+`GatewayInfo.type` and vendor strings (PR #3 improvement).
+
+---
+
+### `SkillInfo.source` should use Literal type
+
+**Trigger:** `/simplify` code quality review flagged `source: str = "passive"`
+with comment `# "passive" or "active" (spec 08)` but no type enforcement.
+
+**Current state:** Any string is accepted. When spec 08 adds active sources,
+a mistyped `"actve"` would not be caught by mypy.
+
+**Impacted files:**
+- `src/promptlint/orchestrators/__init__.py` — `SkillInfo.source`
+
+**Suggested fix:** Change to `source: Literal["passive", "active"] = "passive"`.
+
+---
+
+### `OrchestratorEnvelope` flattens structured lists, discarding tool/skill metadata
+
+**Trigger:** `/simplify` code quality review noted that `build_envelope()` maps
+`context.skills`, `context.tools`, and `context.agents` to plain `list[str]`
+(names only), silently dropping `ToolInfo.param_count` and `SkillInfo.source`.
+
+**Current state:** The envelope cannot reconstruct which skills were passive vs.
+active, or how many parameters each tool has.
+
+**Impacted files:**
+- `src/promptlint/orchestrators/envelope.py` — `build_envelope()`
+
+**Suggested fix:** Either store the full dataclass lists in the envelope (change
+`detected_skills: list[str]` to `detected_skills: list[SkillInfo]`), or
+document the intentional simplification with a comment explaining that consumers
+needing full metadata should use `DetectedContext` directly.
+
+---
+
+### `_ADAPTERS` module-level mutable list is not thread-safe
+
+**Trigger:** `/simplify` efficiency review flagged that `_ADAPTERS` is a bare
+Python list mutated by `register_adapter`, `clear_adapters`, and
+`register_default_adapters`, and iterated by `detect`. Under a multi-threaded
+ASGI server, concurrent mutations and iterations race with no locking.
+
+**Current state:** No threading protection. `register_default_adapters` has a
+TOCTOU race (check-then-insert is not atomic).
+
+**Impacted files:**
+- `src/promptlint/orchestrators/__init__.py`
+
+**Suggested fix:** Add a `threading.Lock` around mutations and iteration, or use
+an immutable-swap pattern (build a new tuple and assign atomically). The lock is
+simpler and matches the existing `threading.Semaphore` pattern in gateways.
