@@ -68,47 +68,33 @@ def test_passthrough_unknown_vendor() -> None:
     analyzer.analyze.assert_not_called()
 
 
-# --- 429 on overload ---
+# --- Fire-and-forget: overload and blocking no longer affect the response ---
+# These tests verify that requests always pass through (analysis is background-only).
 
 
-def test_overload_returns_429() -> None:
+def test_overload_passes_through() -> None:
+    """When semaphore is exhausted, request still forwards (analysis is skipped)."""
     proxy, _analyzer = _make_proxy(concurrency=ConcurrencyConfig(max_concurrent=1))
-    # Exhaust the semaphore
     assert proxy._semaphore is not None
     proxy._semaphore.acquire(blocking=False)
     app = proxy.create_app()
     client = TestClient(app, raise_server_exceptions=False)
     body = {"system": "Be helpful.", "messages": [{"role": "user", "content": "Hi"}], "max_tokens": 100}
     response = client.post("/v1/messages", json=body)
-    assert response.status_code == 429
-    assert response.json()["error"] == "promptlint_overload"
-    assert response.headers.get("retry-after") == "1"
+    # Request forwards regardless of analysis capacity (will fail to connect to fake target)
+    assert response.status_code != 429
     proxy._semaphore.release()
 
 
-# --- 422 on block ---
-
-
-def test_block_returns_422() -> None:
+def test_critical_severity_passes_through() -> None:
+    """Even with block_on set, fire-and-forget mode forwards immediately."""
     proxy, _analyzer = _make_proxy(severity="critical", block_on="critical")
     app = proxy.create_app()
     client = TestClient(app, raise_server_exceptions=False)
     body = {"system": "Be helpful.", "messages": [{"role": "user", "content": "Hi"}], "max_tokens": 100}
     response = client.post("/v1/messages", json=body)
-    assert response.status_code == 422
-    data = response.json()
-    assert data["error"] == "promptlint_blocked"
-    assert data["severity"] == "critical"
-
-
-def test_no_block_below_threshold() -> None:
-    proxy, _analyzer = _make_proxy(severity="warning", block_on="critical")
-    app = proxy.create_app()
-    client = TestClient(app, raise_server_exceptions=False)
-    body = {"system": "Be helpful.", "messages": [{"role": "user", "content": "Hi"}], "max_tokens": 100}
-    response = client.post("/v1/messages", json=body)
-    # Not blocked, forward fails but not 422
-    assert response.status_code != 422 or "promptlint_blocked" not in response.text
+    # Not blocked — analysis runs in background
+    assert response.status_code != 422
 
 
 # --- Header injection ---

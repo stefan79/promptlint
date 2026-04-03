@@ -107,29 +107,23 @@ class BuiltinProxy:
         async def proxy_post_route(request: Request, path: str) -> JSONResponse | StreamingResponse:
             body_bytes = await request.body()
 
-            # Try to normalize and analyze
-            result: AnalysisResult | None = None
-            try:
-                normalized = proxy.extract_request(body_bytes)
-                result = await asyncio.to_thread(proxy._run_analysis, normalized)
-            except VendorDetectionError:
-                logger.debug("Vendor detection failed for /%s, passing through", path)
-            except PromptLintOverloadError:
-                return JSONResponse(
-                    status_code=429,
-                    content={"error": "promptlint_overload", "message": "Analysis pipeline at capacity"},
-                    headers={"Retry-After": "1"},
-                )
-            except Exception:
-                logger.exception("Pipeline error for /%s, passing through", path)
+            # Fire-and-forget: forward immediately, analyze in background
+            async def _bg_analyze() -> None:
+                try:
+                    normalized = proxy.extract_request(body_bytes)
+                    result = await asyncio.to_thread(proxy._run_analysis, normalized)
+                    _log_result(result, path)
+                except VendorDetectionError:
+                    logger.debug("Vendor detection failed for /%s, skipping analysis", path)
+                except PromptLintOverloadError:
+                    logger.warning("Analysis pipeline at capacity, skipping /%s", path)
+                except Exception:
+                    logger.exception("Pipeline error for /%s", path)
 
-            if result is not None:
-                _log_result(result, path)
-                if proxy.should_block(result):
-                    return _blocked_response(result)
+            asyncio.create_task(_bg_analyze())
 
-            # Forward to target
-            return await _forward_request(request, body_bytes, path, proxy._target, proxy._timeout, result)
+            # Forward to target immediately (no waiting for analysis)
+            return await _forward_request(request, body_bytes, path, proxy._target, proxy._timeout, None)
 
         @app.api_route(
             "/{path:path}",
