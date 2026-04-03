@@ -219,21 +219,27 @@ def _parse_orchestrator(raw: dict[str, Any]) -> OrchestratorSettings:
         msg = f"'orchestrator' must be a mapping, got {type(raw).__name__}"
         raise ConfigError(msg)
     feedback_raw = raw.get("feedback", {})
+    if feedback_raw and not isinstance(feedback_raw, dict):
+        msg = f"'orchestrator.feedback' must be a mapping, got {type(feedback_raw).__name__}"
+        raise ConfigError(msg)
     dataset_raw = raw.get("dataset", {})
+    if dataset_raw and not isinstance(dataset_raw, dict):
+        msg = f"'orchestrator.dataset' must be a mapping, got {type(dataset_raw).__name__}"
+        raise ConfigError(msg)
+    feedback = feedback_raw if isinstance(feedback_raw, dict) else {}
+    dataset = dataset_raw if isinstance(dataset_raw, dict) else {}
     return OrchestratorSettings(
         type=raw.get("type", "generic"),
         skill_detection=raw.get("skill_detection", True),
         prompt_fingerprint=raw.get("prompt_fingerprint", True),
         feedback=FeedbackSettings(
-            enabled=feedback_raw.get("enabled", False) if isinstance(feedback_raw, dict) else False,
-            backend=feedback_raw.get("backend", "") if isinstance(feedback_raw, dict) else "",
+            enabled=feedback.get("enabled", False),
+            backend=feedback.get("backend", ""),
         ),
         dataset=DatasetSettings(
-            enabled=dataset_raw.get("enabled", False) if isinstance(dataset_raw, dict) else False,
-            path=dataset_raw.get("path", "") if isinstance(dataset_raw, dict) else "",
-            include_user_messages=dataset_raw.get("include_user_messages", False)
-            if isinstance(dataset_raw, dict)
-            else False,
+            enabled=dataset.get("enabled", False),
+            path=dataset.get("path", ""),
+            include_user_messages=dataset.get("include_user_messages", False),
         ),
     )
 
@@ -317,6 +323,9 @@ def parse_settings_dict(raw: dict[str, Any]) -> PromptLintSettings:
 
     # Backends
     backends_raw = resolved.get("backends", {})
+    if backends_raw and not isinstance(backends_raw, dict):
+        msg = f"'backends' must be a mapping, got {type(backends_raw).__name__}"
+        raise ConfigError(msg)
     backends = _validate_backends(backends_raw) if backends_raw else {}
 
     # Gateway
@@ -374,7 +383,7 @@ def _deep_validate_backends(settings: PromptLintSettings) -> list[str]:
     from promptlint.models import AnalysisResult, Feedback
 
     errors: list[str] = []
-    test_result = AnalysisResult(instruction_count=0, severity="ok", density=0.0)
+    test_result = AnalysisResult()
     test_feedback = Feedback(analysis_id="validate-test", rating="good", note="config validation")
 
     for name, config in settings.backends.items():

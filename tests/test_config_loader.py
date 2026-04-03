@@ -60,12 +60,9 @@ def test_discover_home_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
             Path("/etc/promptlint/promptlint.yaml"),
         ],
     )
-    try:
-        found = discover_config()
-        assert found is not None
-        assert "promptlint.yaml" in str(found)
-    finally:
-        monkeypatch.setattr(cl, "_SEARCH_CHAIN", original)
+    found = discover_config()
+    assert found is not None
+    assert "promptlint.yaml" in str(found)
 
 
 def test_discover_returns_none(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -251,6 +248,48 @@ def test_not_a_mapping(tmp_path: Path) -> None:
     cfg = tmp_path / "promptlint.yaml"
     cfg.write_text("- item1\n- item2\n")
     with pytest.raises(ConfigError, match="must be a YAML mapping"):
+        load_settings(cfg)
+
+
+def test_backends_section_not_mapping(tmp_path: Path) -> None:
+    cfg = tmp_path / "promptlint.yaml"
+    cfg.write_text(
+        textwrap.dedent("""\
+        version: 1
+        backends:
+          - jsonl
+          - sqlite
+    """)
+    )
+    with pytest.raises(ConfigError, match="'backends' must be a mapping"):
+        load_settings(cfg)
+
+
+def test_orchestrator_feedback_not_mapping(tmp_path: Path) -> None:
+    cfg = tmp_path / "promptlint.yaml"
+    cfg.write_text(
+        textwrap.dedent("""\
+        version: 1
+        orchestrator:
+          type: claude-code
+          feedback: true
+    """)
+    )
+    with pytest.raises(ConfigError, match="'orchestrator.feedback' must be a mapping"):
+        load_settings(cfg)
+
+
+def test_orchestrator_dataset_not_mapping(tmp_path: Path) -> None:
+    cfg = tmp_path / "promptlint.yaml"
+    cfg.write_text(
+        textwrap.dedent("""\
+        version: 1
+        orchestrator:
+          type: claude-code
+          dataset: "/some/path"
+    """)
+    )
+    with pytest.raises(ConfigError, match="'orchestrator.dataset' must be a mapping"):
         load_settings(cfg)
 
 

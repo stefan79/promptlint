@@ -273,7 +273,11 @@ def _cmd_test_backends(args: argparse.Namespace) -> None:
 def _cmd_validate(args: argparse.Namespace) -> None:
     from promptlint.config_loader import discover_config, validate_config
 
-    config_path = discover_config(args.config)
+    try:
+        config_path = discover_config(args.config)
+    except FileNotFoundError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
     if config_path is None:
         print("No config file found. Searched:")
         print("  ./promptlint.yaml")
