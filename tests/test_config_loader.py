@@ -50,7 +50,6 @@ def test_discover_home_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
     # Patch the search chain to use the tmp_path home
     import promptlint.config_loader as cl
 
-    original = cl._SEARCH_CHAIN
     monkeypatch.setattr(
         cl,
         "_SEARCH_CHAIN",
@@ -275,7 +274,7 @@ def test_orchestrator_feedback_not_mapping(tmp_path: Path) -> None:
           feedback: true
     """)
     )
-    with pytest.raises(ConfigError, match="'orchestrator.feedback' must be a mapping"):
+    with pytest.raises(ConfigError, match=r"'orchestrator\.feedback' must be a mapping"):
         load_settings(cfg)
 
 
@@ -289,7 +288,7 @@ def test_orchestrator_dataset_not_mapping(tmp_path: Path) -> None:
           dataset: "/some/path"
     """)
     )
-    with pytest.raises(ConfigError, match="'orchestrator.dataset' must be a mapping"):
+    with pytest.raises(ConfigError, match=r"'orchestrator\.dataset' must be a mapping"):
         load_settings(cfg)
 
 
