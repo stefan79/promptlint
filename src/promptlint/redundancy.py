@@ -33,7 +33,7 @@ class RedundancyDetector:
     def _hdbscan_grouping(self, instructions: list[ClassifiedChunk], embeddings: np.ndarray) -> list[RedundancyGroup]:
         # Precompute cosine distance matrix to avoid sklearn metric lookup issues
         sim_matrix_full = cosine_similarity(embeddings)
-        distance_matrix = np.clip(1.0 - sim_matrix_full, 0.0, 2.0)
+        distance_matrix = np.clip(1.0 - sim_matrix_full, 0.0, 2.0).astype(np.float64)
         clusterer = hdbscan.HDBSCAN(
             min_cluster_size=self.config.hdbscan_min_cluster_size,
             min_samples=self.config.hdbscan_min_samples,

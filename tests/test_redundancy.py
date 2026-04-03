@@ -61,3 +61,45 @@ def test_single_instruction(detector, make_instruction):
     inst = [make_instruction("Be concise")]
     emb = np.random.randn(1, 384).astype(np.float32)
     assert detector.detect(inst, emb) == []
+
+
+def test_hdbscan_with_float32_embeddings(detector, make_instruction):
+    """HDBSCAN path must handle float32 embeddings (sentence-transformers default)."""
+    n = 25  # above small_dataset_threshold (20) to trigger HDBSCAN
+    instructions = [make_instruction(f"Instruction {i}") for i in range(n)]
+    # Create float32 embeddings with two near-duplicate clusters
+    rng = np.random.RandomState(42)
+    base_a = rng.randn(384).astype(np.float32)
+    base_b = rng.randn(384).astype(np.float32)
+    embeddings = np.zeros((n, 384), dtype=np.float32)
+    for i in range(10):
+        embeddings[i] = base_a + rng.randn(384).astype(np.float32) * 0.01
+    for i in range(10, 20):
+        embeddings[i] = base_b + rng.randn(384).astype(np.float32) * 0.01
+    for i in range(20, n):
+        embeddings[i] = rng.randn(384).astype(np.float32)
+    # Normalize like sentence-transformers does
+    norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
+    embeddings = embeddings / norms
+
+    groups = detector.detect(instructions, embeddings)
+    assert len(groups) >= 2  # should find at least the two synthetic clusters
+
+
+def test_pairwise_with_float32_embeddings(detector, make_instruction):
+    """Pairwise path must handle float32 embeddings."""
+    n = 5  # below small_dataset_threshold (20) to trigger pairwise
+    instructions = [make_instruction(f"Instruction {i}") for i in range(n)]
+    rng = np.random.RandomState(42)
+    base = rng.randn(384).astype(np.float32)
+    embeddings = np.zeros((n, 384), dtype=np.float32)
+    # First 3 are near-duplicates
+    for i in range(3):
+        embeddings[i] = base + rng.randn(384).astype(np.float32) * 0.01
+    for i in range(3, n):
+        embeddings[i] = rng.randn(384).astype(np.float32)
+    norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
+    embeddings = embeddings / norms
+
+    groups = detector.detect(instructions, embeddings)
+    assert len(groups) >= 1
