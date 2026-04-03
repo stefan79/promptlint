@@ -164,7 +164,12 @@ def _log_result(result: AnalysisResult, path: str) -> None:
     logger.info("  Instructions:    %d total, %d unique", result.instruction_count, result.unique_instruction_count)
     logger.info("  Density:         %.1f instructions/1K tokens", result.density)
     redundant = result.instruction_count - result.unique_instruction_count
-    logger.info("  Redundancy:      %d redundant (%.1f%%), %d groups", redundant, result.redundancy_ratio * 100, len(result.redundant_groups))
+    logger.info(
+        "  Redundancy:      %d redundant (%.1f%%), %d groups",
+        redundant,
+        result.redundancy_ratio * 100,
+        len(result.redundant_groups),
+    )
     logger.info("  Contradictions:  %d (skipped in proxy mode)", len(result.contradictions))
     if result.section_distribution:
         logger.info("  Sections:")

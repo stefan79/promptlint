@@ -90,7 +90,8 @@ class PromptAnalyzer:
 
         # Stage 5: Contradiction detection
         contradictions = (
-            [] if skip_contradictions
+            []
+            if skip_contradictions
             else self.contradiction_detector.detect(instructions, embeddings, redundancy_groups)
         )
 
