@@ -1000,3 +1000,57 @@ processes data from external sources. Verify that inputs from
 `NormalizedRequest` (tool call inputs, message content, tool definitions) are
 type-checked before field access. Registry/factory functions should be tested
 for idempotency and interaction with pre-existing state."
+
+## PR #5 — Spec 06 Configuration Language Review (2026-04-03)
+
+### `_deep_validate_backends` duplicates `_cmd_test_backends` probe loop
+
+**Trigger:** `/simplify` code reuse review found that `config_loader._deep_validate_backends` and `cli._cmd_test_backends` both iterate backend configs, call `create_emitter()`, write test `AnalysisResult`/`Feedback`, and check for errors. The only difference is output format (error list vs print).
+
+**Current state:** Two independent implementations of the same backend probe logic.
+
+**Impacted files:**
+- `src/promptlint/config_loader.py` — `_deep_validate_backends`
+- `src/promptlint/cli.py` — `_cmd_test_backends`
+
+**Suggested fix:** Extract a shared `probe_backends(backends: dict) -> list[str]` function. `_cmd_test_backends` calls it and formats output. `_deep_validate_backends` delegates directly.
+
+---
+
+### `_deep_validate_backends` writes real records to production backends
+
+**Trigger:** `/simplify` efficiency review found that deep validation writes actual `AnalysisResult` and `Feedback` records to every configured backend (JSONL, SQLite, Elasticsearch, webhook, Prometheus) with no cleanup.
+
+**Current state:** Running `promptlint validate --deep` pollutes production storage with test data.
+
+**Impacted files:**
+- `src/promptlint/config_loader.py` — `_deep_validate_backends`
+
+**Suggested fix:** Add a `ping()` or `check_connectivity()` method to the `Emitter` protocol for lightweight validation. JSONL/SQLite: check path is writable. ES: `GET /`. Webhook: `HEAD` request. Prometheus: `GET` pushgateway. Fall back to current behavior only if `ping()` is not implemented.
+
+---
+
+### `GatewaySettings.type` and `OrchestratorSettings.type` should use Literal types
+
+**Trigger:** `/simplify` code quality review found both fields are `str` but validated against fixed sets at runtime. No mypy enforcement.
+
+**Current state:** `GatewaySettings.type: str` validated against `{"builtin-proxy", "sdk-middleware"}`. `OrchestratorSettings.type: str` has no validation at all.
+
+**Impacted files:**
+- `src/promptlint/config_loader.py`
+
+**Suggested fix:** Use `Literal["builtin-proxy", "sdk-middleware"]` and `Literal["generic", "claude-code"]`. Consistent with existing `Literal` usage in `orchestrators/__init__.py`.
+
+---
+
+### `_SEARCH_CHAIN` frozen at import time creates test friction
+
+**Trigger:** `/simplify` efficiency review noted that `Path.home()` is evaluated once at module import. Tests must monkey-patch the entire `_SEARCH_CHAIN` list to override home directory.
+
+**Current state:** `test_discover_home_config` patches `_SEARCH_CHAIN` directly — fragile coupling to a private module-level variable.
+
+**Impacted files:**
+- `src/promptlint/config_loader.py` — `_SEARCH_CHAIN`
+- `tests/test_config_loader.py` — `test_discover_home_config`
+
+**Suggested fix:** Compute `_SEARCH_CHAIN` lazily inside `discover_config()` or accept an optional `search_chain` parameter for testability.

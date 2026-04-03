@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import os
-import re
 from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
@@ -41,21 +39,9 @@ def create_emitter(config: dict) -> Emitter:
 
 def _resolve_env_vars(config: dict) -> dict:
     """Replace ${VAR} references with environment variable values (recursive)."""
+    from promptlint.config_loader import resolve_env_vars
 
-    def _expand(m: re.Match[str]) -> str:
-        var_name: str = m.group(1)
-        return os.environ.get(var_name, m.group(0))
-
-    def _resolve(value: object) -> object:
-        if isinstance(value, str):
-            return re.sub(r"\$\{(\w+)\}", _expand, value)
-        if isinstance(value, dict):
-            return {k: _resolve(v) for k, v in value.items()}
-        if isinstance(value, list):
-            return [_resolve(v) for v in value]
-        return value
-
-    return {k: _resolve(v) for k, v in config.items()}
+    return {k: resolve_env_vars(v) for k, v in config.items()}
 
 
 # Auto-register built-in emitters on import

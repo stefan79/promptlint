@@ -279,10 +279,11 @@ def _cmd_validate(args: argparse.Namespace) -> None:
         print(f"Error: {e}")
         sys.exit(1)
     if config_path is None:
+        from promptlint.config_loader import _SEARCH_CHAIN
+
         print("No config file found. Searched:")
-        print("  ./promptlint.yaml")
-        print("  ~/.config/promptlint/promptlint.yaml")
-        print("  /etc/promptlint/promptlint.yaml")
+        for p in _SEARCH_CHAIN:
+            print(f"  {p}")
         print()
         print("Use --config to specify a path.")
         sys.exit(1)

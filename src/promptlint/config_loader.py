@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import os
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Any
 
@@ -56,14 +56,14 @@ def discover_config(explicit_path: str | None = None) -> Path | None:
 _ENV_RE = re.compile(r"\$\{(\w+)\}")
 
 
-def _resolve_env_vars(value: object) -> object:
+def resolve_env_vars(value: object) -> object:
     """Recursively replace ${VAR} references with environment variable values."""
     if isinstance(value, str):
         return _ENV_RE.sub(lambda m: os.environ.get(m.group(1), m.group(0)), value)
     if isinstance(value, dict):
-        return {k: _resolve_env_vars(v) for k, v in value.items()}
+        return {k: resolve_env_vars(v) for k, v in value.items()}
     if isinstance(value, list):
-        return [_resolve_env_vars(v) for v in value]
+        return [resolve_env_vars(v) for v in value]
     return value
 
 
@@ -310,7 +310,7 @@ def parse_settings_dict(raw: dict[str, Any]) -> PromptLintSettings:
     # Resolve env vars throughout
     resolved: dict[str, Any] = {}
     for k, v in raw.items():
-        resolved[k] = _resolve_env_vars(v)
+        resolved[k] = resolve_env_vars(v)
 
     version = _validate_version(resolved)
 
@@ -401,20 +401,8 @@ def _deep_validate_backends(settings: PromptLintSettings) -> list[str]:
 
 def settings_to_config(settings: PromptLintSettings) -> dict[str, Any]:
     """Convert AnalysisSettings overrides into kwargs for Config()."""
-    overrides: dict[str, Any] = {}
-    analysis = settings.analysis
-    if analysis.classification_threshold is not None:
-        overrides["classification_threshold"] = analysis.classification_threshold
-    if analysis.contradiction_threshold is not None:
-        overrides["contradiction_threshold"] = analysis.contradiction_threshold
-    if analysis.redundancy_similarity is not None:
-        overrides["redundancy_similarity"] = analysis.redundancy_similarity
-    if analysis.warn_instructions is not None:
-        overrides["warn_instructions"] = analysis.warn_instructions
-    if analysis.critical_instructions is not None:
-        overrides["critical_instructions"] = analysis.critical_instructions
-    if analysis.warn_density is not None:
-        overrides["warn_density"] = analysis.warn_density
-    if analysis.critical_density is not None:
-        overrides["critical_density"] = analysis.critical_density
-    return overrides
+    return {
+        f.name: getattr(settings.analysis, f.name)
+        for f in fields(settings.analysis)
+        if getattr(settings.analysis, f.name) is not None
+    }
