@@ -310,9 +310,14 @@ def _cmd_proxy(args: argparse.Namespace) -> None:
 
     from promptlint.gateways.proxy import BuiltinProxy
 
-    # Enable promptlint proxy logging
-    logging.basicConfig(level=logging.INFO, format="%(message)s")
-    logging.getLogger("promptlint.gateways.proxy").setLevel(logging.INFO)
+    # Enable promptlint proxy logging with immediate flush
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter("%(message)s"))
+    handler.setLevel(logging.INFO)
+    for name in ("promptlint.gateways.proxy", "promptlint.pipeline"):
+        log = logging.getLogger(name)
+        log.setLevel(logging.INFO)
+        log.addHandler(handler)
 
     proxy = BuiltinProxy(
         target=args.target,

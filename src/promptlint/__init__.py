@@ -81,6 +81,7 @@ class PromptAnalyzer:
         logger.info("  [chunker]        %d chunks from input", len(chunks))
 
         # Stage 2: Classify
+        logger.info("  [classifier]     classifying %d chunks (this may take a while on CPU)...", len(chunks))
         t0 = time.monotonic()
         classified = self.classifier.classify(chunks)
         instructions = [c for c in classified if c.label == "instruction"]
