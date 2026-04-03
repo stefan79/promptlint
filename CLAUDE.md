@@ -106,6 +106,7 @@ Two observation modes:
 | 11 | [Orchestrator: Codex CLI](specs/11-orchestrator-codex-cli.md) | Draft |
 | 12 | [Orchestrator: OpenCode](specs/12-orchestrator-opencode.md) | Draft |
 | 13 | [Per-Source Metrics](specs/13-per-source-metrics.md) | Draft |
+| 14 | [Incremental Analysis Cache](specs/14-incremental-analysis-cache.md) | Draft |
 
 ## Module layout
 

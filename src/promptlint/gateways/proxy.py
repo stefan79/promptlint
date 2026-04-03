@@ -75,14 +75,20 @@ class BuiltinProxy:
 
     def _run_analysis(self, normalized: NormalizedRequest) -> AnalysisResult:
         """Run pipeline synchronously, respecting semaphore."""
+        import time
+
         if self._semaphore is not None and not self._semaphore.acquire(blocking=False):
             raise PromptLintOverloadError("Analysis pipeline at capacity")
         try:
+            t0 = time.monotonic()
             result = self._analyzer.analyze(
                 system_prompt=normalized.system_prompt,
                 tools=normalized.tools if normalized.tools else None,
+                skip_contradictions=True,  # TODO(spec-14): remove when incremental cache lands
             )
+            elapsed_ms = (time.monotonic() - t0) * 1000
             result.gateway = self._info
+            logger.info("Analysis completed in %.0fms", elapsed_ms)
             return result
         finally:
             if self._semaphore is not None:
@@ -153,15 +159,18 @@ class BuiltinProxy:
 
 
 def _log_result(result: AnalysisResult, path: str) -> None:
-    logger.warning(
-        "POST /%s -> %d instructions (%d unique), density %.1f, severity %s, %d contradictions",
-        path,
-        result.instruction_count,
-        result.unique_instruction_count,
-        result.density,
-        result.severity.upper(),
-        len(result.contradictions),
-    )
+    logger.info("--- New request: POST /%s ---", path)
+    logger.info("  Severity:        %s", result.severity.upper())
+    logger.info("  Instructions:    %d total, %d unique", result.instruction_count, result.unique_instruction_count)
+    logger.info("  Density:         %.1f instructions/1K tokens", result.density)
+    redundant = result.instruction_count - result.unique_instruction_count
+    logger.info("  Redundancy:      %d redundant (%.1f%%), %d groups", redundant, result.redundancy_ratio * 100, len(result.redundant_groups))
+    logger.info("  Contradictions:  %d (skipped in proxy mode)", len(result.contradictions))
+    if result.section_distribution:
+        logger.info("  Sections:")
+        for section, count in sorted(result.section_distribution.items(), key=lambda x: -x[1]):
+            pct = (count / result.instruction_count * 100) if result.instruction_count else 0
+            logger.info("    %-20s %3d instructions (%4.1f%%)", section, count, pct)
 
 
 def _blocked_response(result: AnalysisResult) -> JSONResponse:

@@ -51,6 +51,7 @@ class PromptAnalyzer:
         constitution: str | None = None,
         tools: list[dict] | None = None,
         user_message: str | None = None,
+        skip_contradictions: bool = False,
     ) -> AnalysisResult:
         """Run the full analysis pipeline on a prompt."""
         # Parse input into chunks
@@ -88,7 +89,10 @@ class PromptAnalyzer:
         redundancy_groups = self.redundancy_detector.detect(instructions, embeddings)
 
         # Stage 5: Contradiction detection
-        contradictions = self.contradiction_detector.detect(instructions, embeddings, redundancy_groups)
+        contradictions = (
+            [] if skip_contradictions
+            else self.contradiction_detector.detect(instructions, embeddings, redundancy_groups)
+        )
 
         # Stage 6: Score
         return score(

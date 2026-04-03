@@ -304,9 +304,15 @@ def _cmd_validate(args: argparse.Namespace) -> None:
 
 
 def _cmd_proxy(args: argparse.Namespace) -> None:
+    import logging
+
     import uvicorn
 
     from promptlint.gateways.proxy import BuiltinProxy
+
+    # Enable promptlint proxy logging
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    logging.getLogger("promptlint.gateways.proxy").setLevel(logging.INFO)
 
     proxy = BuiltinProxy(
         target=args.target,
@@ -321,6 +327,7 @@ def _cmd_proxy(args: argparse.Namespace) -> None:
     app = proxy.create_app()
     print(f"promptlint proxy listening on http://localhost:{args.port}")
     print(f"Forwarding to {args.target}")
+    print("Contradiction detection: DISABLED (see spec 14 for incremental cache)")
     if args.fail_on:
         print(f"Blocking requests with severity >= {args.fail_on}")
     print()
