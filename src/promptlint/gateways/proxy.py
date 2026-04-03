@@ -202,6 +202,11 @@ async def _forward_request(
 ) -> JSONResponse | StreamingResponse:
     headers = dict(request.headers)
     headers.pop("host", None)
+    # Remove encoding headers — httpx handles decompression transparently,
+    # but we stream raw bytes back so the client would get compressed data
+    # with no Content-Encoding header, causing decompression errors.
+    headers.pop("accept-encoding", None)
+    headers.pop("content-length", None)
     if result is not None:
         headers.update(analysis_headers(result))
 
@@ -242,6 +247,8 @@ async def _stream_response(
         await response.aclose()
 
     resp_headers = dict(response.headers)
+    resp_headers.pop("content-encoding", None)
+    resp_headers.pop("content-length", None)
     if result is not None:
         resp_headers.update(analysis_headers(result))
     return StreamingResponse(
