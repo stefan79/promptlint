@@ -58,6 +58,11 @@ def main() -> None:
     proxy_parser.add_argument("--fail-on", choices=["warning", "critical"], default=None)
     _add_common_args(proxy_parser)
 
+    # validate command (spec 06)
+    validate_parser = subparsers.add_parser("validate", help="Validate a promptlint.yaml config file.")
+    validate_parser.add_argument("--config", help="Path to config file (auto-discovers if omitted).")
+    validate_parser.add_argument("--deep", action="store_true", help="Also test backend connectivity.")
+
     args = parser.parse_args()
 
     if args.command == "analyze":
@@ -74,6 +79,8 @@ def main() -> None:
         _cmd_test_backends(args)
     elif args.command == "proxy":
         _cmd_proxy(args)
+    elif args.command == "validate":
+        _cmd_validate(args)
 
 
 def _add_common_args(parser: argparse.ArgumentParser) -> None:
@@ -261,6 +268,39 @@ def _cmd_test_backends(args: argparse.Namespace) -> None:
     print(f"{passed} passed, {failed} failed")
     if failed > 0:
         sys.exit(1)
+
+
+def _cmd_validate(args: argparse.Namespace) -> None:
+    from promptlint.config_loader import discover_config, validate_config
+
+    try:
+        config_path = discover_config(args.config)
+    except FileNotFoundError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+    if config_path is None:
+        from promptlint.config_loader import _SEARCH_CHAIN
+
+        print("No config file found. Searched:")
+        for p in _SEARCH_CHAIN:
+            print(f"  {p}")
+        print()
+        print("Use --config to specify a path.")
+        sys.exit(1)
+
+    print(f"Validating {config_path} ...")
+    errors = validate_config(config_path, deep=args.deep)
+    if errors:
+        print()
+        for err in errors:
+            print(f"  ERROR: {err}")
+        print()
+        print(f"{len(errors)} error(s) found.")
+        sys.exit(1)
+    else:
+        print("  OK — config is valid.")
+        if args.deep:
+            print("  OK — all backends reachable.")
 
 
 def _cmd_proxy(args: argparse.Namespace) -> None:
