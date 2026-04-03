@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import logging
+
 import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer  # noqa: TC002
 
 from promptlint.config import INSTRUCTION_HYPOTHESES, Config
 from promptlint.models import Chunk, ClassifiedChunk
+
+logger = logging.getLogger("promptlint.pipeline")
 
 
 class InstructionClassifier:
@@ -56,21 +60,32 @@ class InstructionClassifier:
 
         return results
 
-    def _run_nli_batch(self, premises: list[str], hypotheses: list[str]) -> list[float]:
-        """Run NLI on premise-hypothesis pairs, return entailment probabilities."""
+    def _run_nli_batch(self, premises: list[str], hypotheses: list[str], batch_size: int = 30) -> list[float]:
+        """Run NLI on premise-hypothesis pairs in mini-batches, return entailment probabilities."""
         if not premises:
             return []
 
-        inputs = self.tokenizer(  # type: ignore[operator]
-            premises,
-            hypotheses,
-            padding=True,
-            truncation=True,
-            max_length=512,
-            return_tensors="pt",
-        ).to(self.device)
+        all_scores: list[float] = []
+        total = len(premises)
+        n_chunks = total // 3  # 3 hypotheses per chunk
 
-        with torch.no_grad():
-            outputs = self.model(**inputs)  # type: ignore[operator]
-            probs = torch.softmax(outputs.logits, dim=-1)
-        return probs[:, self._entailment_idx].cpu().tolist()
+        for start in range(0, total, batch_size):
+            end = min(start + batch_size, total)
+            inputs = self.tokenizer(  # type: ignore[operator]
+                premises[start:end],
+                hypotheses[start:end],
+                padding=True,
+                truncation=True,
+                max_length=512,
+                return_tensors="pt",
+            ).to(self.device)
+
+            with torch.no_grad():
+                outputs = self.model(**inputs)  # type: ignore[operator]
+                probs = torch.softmax(outputs.logits, dim=-1)
+            all_scores.extend(probs[:, self._entailment_idx].cpu().tolist())
+
+            chunks_done = min(end // 3, n_chunks)
+            logger.info("  [classifier]     %d/%d chunks classified...", chunks_done, n_chunks)
+
+        return all_scores
