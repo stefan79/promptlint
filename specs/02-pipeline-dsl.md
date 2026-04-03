@@ -1,6 +1,6 @@
 # 02 — Pipeline DSL
 
-> Status: **Ready for implementation — all open questions resolved**
+> Status: **Implemented**
 
 ## Goal
 

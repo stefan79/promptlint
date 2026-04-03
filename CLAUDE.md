@@ -93,13 +93,13 @@ Two observation modes:
 
 | # | Spec | Status |
 |---|------|--------|
-| 01 | [Core Pipeline](specs/01-core-pipeline.md) | ~95% implemented |
-| 02 | [Pipeline DSL](specs/02-pipeline-dsl.md) | Ready for implementation |
+| 01 | [Core Pipeline](specs/01-core-pipeline.md) | Implemented |
+| 02 | [Pipeline DSL](specs/02-pipeline-dsl.md) | Implemented |
 | 03 | [Storage Backends](specs/03-storage-backends.md) | Implemented |
-| 04 | [Gateway Integration](specs/04-gateway-integration.md) | Draft |
+| 04 | [Gateway Integration](specs/04-gateway-integration.md) | Implemented |
 | 05 | [Orchestrator Support (Passive)](specs/05-orchestrator-support.md) | Implemented |
 | 06 | [Configuration Language](specs/06-configuration.md) | Implemented |
-| 07 | [Benchmarks](specs/07-benchmarks.md) | Draft, blocked on 02-05 |
+| 07 | [Benchmarks](specs/07-benchmarks.md) | Draft |
 | 08 | [Orchestrator Plugins (Active)](specs/08-orchestrator-plugins.md) | Draft |
 | 09 | [Linting Rules Engine](specs/09-linting-rules.md) | Draft |
 | 10 | [Positional Attention Risk](specs/10-positional-attention.md) | Draft |

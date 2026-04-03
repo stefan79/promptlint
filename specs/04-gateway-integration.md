@@ -1,6 +1,6 @@
 # 04 — Gateway Integration
 
-> Status: **Draft — decisions resolved, ready for implementation**
+> Status: **Implemented**
 
 ## Goal
 

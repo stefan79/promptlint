@@ -1,5 +1,7 @@
 # promptlint — Specification v1.0
 
+> Status: **Implemented**
+
 ## Overview
 
 `promptlint` is a Python library and CLI that analyzes assembled LLM prompts to count discrete behavioral instructions, detect redundancy, identify contradictions, and score structural complexity. It uses encoder-based NLP models — not regex heuristics or LLM calls — to produce deterministic, fast, reproducible analysis.
