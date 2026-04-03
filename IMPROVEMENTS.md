@@ -1054,3 +1054,84 @@ for idempotency and interaction with pre-existing state."
 - `tests/test_config_loader.py` — `test_discover_home_config`
 
 **Suggested fix:** Compute `_SEARCH_CHAIN` lazily inside `discover_config()` or accept an optional `search_chain` parameter for testability.
+
+Here are the improvement findings:
+
+## PR #5 — Implement spec 06: Configuration Language (2026-04-03)
+
+### Spec-review should check CLI error handling for all entry points
+
+**Trigger:** Code review found that `promptlint validate --config <missing-file>` produced a traceback instead of a user-friendly error. The spec defined `discover_config()` behavior (raises `FileNotFoundError`) and the `validate` CLI command, but didn't specify how the CLI surfaces that error. The spec-review skill didn't catch this gap.
+
+**Current state:** Spec-review check #5 (Implementation readiness) says "Are error cases and edge cases specified?" but doesn't specifically check that **every CLI subcommand documents its error-to-exit-code mapping**. Check #6 (Review-proofing) mentions "resource management" and "type safety" but not CLI UX for error paths.
+
+**Impacted files:**
+- `.claude/skills/spec-review.md` — checks 5 and 6
+
+**Suggested fix:** Add to check #5 (Implementation readiness): "For specs that add CLI subcommands: does the spec define how each error type maps to user-facing output? Every exception that can reach the CLI entry point needs an explicit catch-and-print path, not a raw traceback." Add to check #6 (Review-proofing): "CLI error UX: every new subcommand handles all exceptions from its called functions with user-friendly messages and appropriate exit codes."
+
+---
+
+### Spec-review and code-review should flag truthiness-based type validation
+
+**Trigger:** Code review found two bugs from the same pattern: `if backends_raw` skips validation when `backends: []` (falsy but wrong type), and `if feedback_raw and not isinstance(feedback_raw, dict)` silently coerces falsy non-dict values like `false` or `0`. Both stem from using Python truthiness checks where type checks were intended.
+
+**Current state:** Code-review check #5 (Python best practices) lists "No bare `except:`, no mutable default arguments" but doesn't flag truthiness-as-type-guard. Spec-review has no check for this pattern. Neither skill warns about the distinction between "missing/None" vs "present but wrong type" vs "present but falsy."
+
+**Impacted files:**
+- `.claude/skills/code-review.md` — check 5 (Python best practices)
+- `.claude/skills/spec-review.md` — check 6 (Review-proofing)
+
+**Suggested fix:** Add to code-review check #5: "Validation code must use `is not None` or explicit type checks (`isinstance`), not truthiness (`if x`), when the intent is to distinguish missing values from wrong-type values. `if x and not isinstance(x, dict)` silently accepts `[]`, `0`, `False`, `''` — use `if x is not None and not isinstance(x, dict)` instead." Add to spec-review check #6: "Type coercion: when a spec defines a field as a mapping, does it specify behavior for wrong-type-but-falsy inputs like `[]`, `false`, `0`?"
+
+---
+
+### Architect skill missing config_loader interfaces and discovery chain
+
+**Trigger:** PR #5 introduced `PromptLintSettings`, `GatewaySettings`, `OrchestratorSettings`, `AnalysisSettings`, `ConfigError`, and the `discover_config` → `load_settings` → `parse_settings_dict` public API. None of these appear in the architect skill, which is the authoritative interface reference that spec-review and code-review cross-check against.
+
+**Current state:** The architect skill documents interfaces for pipeline (`AnalysisResult`, `Feedback`, `Emitter`, `GatewayListener`, `PipelineStage`) but has no section for configuration types. The file organization section in the skill doesn't include `config_loader.py`.
+
+**Impacted files:**
+- `.claude/skills/architect.md` — Core interfaces section and file organization
+
+**Suggested fix:** Add a "Configuration" section to the architect skill covering: `PromptLintSettings` (top-level), `GatewaySettings`, `OrchestratorSettings`, `AnalysisSettings`, `ConfigError`, and the public API (`discover_config`, `load_settings`, `validate_config`, `settings_to_config`). Add `config_loader.py` to the file organization. This ensures future specs that interact with config (gateway, orchestrator plugins) are reviewed against the actual config interfaces.
+
+---
+
+### Test-rules missing per-component edge cases for config parsing
+
+**Trigger:** The 43 tests in this PR cover many validation paths but miss the two falsy-value bugs found by code review (`backends: []` and `feedback: false`). The test-rules skill defines per-component edge cases for Chunker, Classifier, Embedder, etc., but has no section for config parsing despite it being a new component with its own edge case patterns.
+
+**Current state:** Test-rules "Per-component edge cases" section covers only pipeline stages: Chunker, Classifier, Embedder, Redundancy, Contradiction, Scorer.
+
+**Impacted files:**
+- `.claude/skills/test-rules.md` — Per-component edge cases section
+
+**Suggested fix:** Add a **Config loader** entry: "wrong-type-but-falsy values for mapping fields (`backends: []`, `feedback: false`, `dataset: 0`), env var in every value position (string, nested dict, list item), config file with only comments, duplicate backend names, circular cross-references (feedback backend referencing itself), all gateway types with missing required fields."
+
+---
+
+### Spec-develop agent should run `/code-review` before creating PR
+
+**Trigger:** The three P2 code review findings (missing error handling, truthiness validation, silent coercion) were all caught by the external code review after the PR was created. The spec-develop agent runs quality checks (ruff, mypy, pytest) in Phase 2 step 10, but doesn't run the `/code-review` skill which would have caught architecture compliance and edge case issues before the PR was opened.
+
+**Current state:** Phase 2 step 10 runs `ruff check`, `ruff format`, `mypy`, and `pytest`. Phase 2 step 11 re-runs `/spec-review`. There is no step that runs `/code-review` on the implementation before creating the PR.
+
+**Impacted files:**
+- `.claude/agents/spec-develop.md` — Phase 2, between steps 10 and 11
+
+**Suggested fix:** Add a step between 10 and 11: "**Self code-review.** Run `/code-review` on all new and modified files. Address any FAIL findings before proceeding. WARN findings should be evaluated — fix if straightforward, otherwise note in the PR description."
+
+---
+
+### CLAUDE.md core interfaces table missing configuration boundary
+
+**Trigger:** PR #5 added config types that mediate between the YAML file and every other subsystem (pipeline, gateway, orchestrator, emitters). The Core interfaces table in CLAUDE.md lists pipeline→emitter, gateway→pipeline, user→emitter boundaries but not config→everything.
+
+**Current state:** The "Core interfaces (summary)" table has 8 entries covering pipeline, gateway, emitter, and orchestrator boundaries. No entry for config loading.
+
+**Impacted files:**
+- `CLAUDE.md` — Core interfaces table
+
+**Suggested fix:** Add row: `| **PromptLintSettings** | Top-level config parsed from promptlint.yaml. Wires pipelines, backends, gateways, orchestrators. | YAML file → all subsystems |`
