@@ -31,13 +31,16 @@ class RedundancyDetector:
         return self._hdbscan_grouping(instructions, embeddings)
 
     def _hdbscan_grouping(self, instructions: list[ClassifiedChunk], embeddings: np.ndarray) -> list[RedundancyGroup]:
+        # Precompute cosine distance matrix to avoid sklearn metric lookup issues
+        sim_matrix_full = cosine_similarity(embeddings)
+        distance_matrix = np.clip(1.0 - sim_matrix_full, 0.0, 2.0)
         clusterer = hdbscan.HDBSCAN(
             min_cluster_size=self.config.hdbscan_min_cluster_size,
             min_samples=self.config.hdbscan_min_samples,
-            metric="cosine",
+            metric="precomputed",
             cluster_selection_epsilon=self.config.hdbscan_epsilon,
         )
-        labels = clusterer.fit_predict(embeddings)
+        labels = clusterer.fit_predict(distance_matrix)
 
         # Group by cluster label (skip noise = -1)
         clusters: dict[int, list[int]] = defaultdict(list)
