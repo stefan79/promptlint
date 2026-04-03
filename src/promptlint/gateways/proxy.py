@@ -216,11 +216,38 @@ async def _forward_request(
         body = {}
     is_streaming = body.get("stream", False) if isinstance(body, dict) else False
 
+    if is_streaming:
+        # For streaming, the client must stay open until streaming completes.
+        # We create the client outside `async with` and close it in the stream generator.
+        client = httpx.AsyncClient(timeout=httpx.Timeout(timeout))
+        req = client.build_request("POST", f"{target}/{path}", headers=headers, content=body_bytes)
+        response = await client.send(req, stream=True)
+
+        async def stream() -> AsyncIterator[bytes]:
+            try:
+                async for chunk in response.aiter_bytes():
+                    yield chunk
+            finally:
+                await response.aclose()
+                await client.aclose()
+
+        resp_headers = dict(response.headers)
+        resp_headers.pop("content-encoding", None)
+        resp_headers.pop("content-length", None)
+        if result is not None:
+            resp_headers.update(analysis_headers(result))
+        return StreamingResponse(
+            stream(),
+            status_code=response.status_code,
+            headers=resp_headers,
+            media_type=response.headers.get("content-type", "text/event-stream"),
+        )
+
     async with httpx.AsyncClient(timeout=httpx.Timeout(timeout)) as client:
-        if is_streaming:
-            return await _stream_response(client, target, path, headers, body_bytes, result)
         response = await client.post(f"{target}/{path}", headers=headers, content=body_bytes)
         resp_headers = dict(response.headers)
+        resp_headers.pop("content-encoding", None)
+        resp_headers.pop("content-length", None)
         if result is not None:
             resp_headers.update(analysis_headers(result))
         return JSONResponse(
@@ -228,35 +255,6 @@ async def _forward_request(
             content=response.json() if _is_json(response) else {"raw": response.text},
             headers=resp_headers,
         )
-
-
-async def _stream_response(
-    client: httpx.AsyncClient,
-    target: str,
-    path: str,
-    headers: dict[str, str],
-    body_bytes: bytes,
-    result: AnalysisResult | None,
-) -> StreamingResponse:
-    req = client.build_request("POST", f"{target}/{path}", headers=headers, content=body_bytes)
-    response = await client.send(req, stream=True)
-
-    async def stream() -> AsyncIterator[bytes]:
-        async for chunk in response.aiter_bytes():
-            yield chunk
-        await response.aclose()
-
-    resp_headers = dict(response.headers)
-    resp_headers.pop("content-encoding", None)
-    resp_headers.pop("content-length", None)
-    if result is not None:
-        resp_headers.update(analysis_headers(result))
-    return StreamingResponse(
-        stream(),
-        status_code=response.status_code,
-        headers=resp_headers,
-        media_type=response.headers.get("content-type", "text/event-stream"),
-    )
 
 
 def _is_json(response: httpx.Response) -> bool:
