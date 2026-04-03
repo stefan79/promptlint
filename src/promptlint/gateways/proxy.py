@@ -7,6 +7,8 @@ import json
 import logging
 import threading
 import uuid
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import httpx
@@ -173,6 +175,67 @@ def _log_result(result: AnalysisResult, path: str) -> None:
         for section, count in sorted(result.section_distribution.items(), key=lambda x: -x[1]):
             pct = (count / result.instruction_count * 100) if result.instruction_count else 0
             logger.info("    %-20s %3d instructions (%4.1f%%)", section, count, pct)
+
+    # Write detailed report to file
+    _write_report(result, path)
+
+
+_REPORT_DIR = Path("promptlint-reports")
+
+
+def _write_report(result: AnalysisResult, path: str) -> None:
+    """Write a detailed labeled instruction report to disk."""
+    _REPORT_DIR.mkdir(exist_ok=True)
+    ts = datetime.now(tz=timezone.utc).strftime("%Y%m%d-%H%M%S")
+    slug = path.replace("/", "_")
+    report_path = _REPORT_DIR / f"{ts}_{slug}.md"
+
+    lines: list[str] = []
+    lines.append(f"# promptlint report — POST /{path}")
+    lines.append("")
+    lines.append(f"**Severity:** {result.severity.upper()}")
+    lines.append(f"**Instructions:** {result.instruction_count} total, {result.unique_instruction_count} unique")
+    lines.append(f"**Density:** {result.density:.1f} instructions/1K tokens")
+    lines.append(f"**Redundancy:** {result.redundancy_ratio:.1%}")
+    lines.append("")
+
+    # Instructions by section
+    lines.append("## Instructions")
+    lines.append("")
+    by_section: dict[str, list[tuple[str, float]]] = {}
+    for inst in result.instructions:
+        section = inst.source_section or "(unknown)"
+        by_section.setdefault(section, []).append((inst.text, inst.confidence))
+
+    for section in sorted(by_section):
+        lines.append(f"### {section}")
+        lines.append("")
+        for text, confidence in by_section[section]:
+            lines.append(f"- [{confidence:.2f}] {text}")
+        lines.append("")
+
+    # Non-instructions (for comparison)
+    if result.non_instructions:
+        lines.append("## Non-instructions (not counted)")
+        lines.append("")
+        for chunk in result.non_instructions:
+            section = chunk.source_section or "(unknown)"
+            lines.append(f"- [{chunk.confidence:.2f}] `{section}` {chunk.text[:120]}")
+        lines.append("")
+
+    # Redundancy groups
+    if result.redundant_groups:
+        lines.append("## Redundancy groups")
+        lines.append("")
+        for i, group in enumerate(result.redundant_groups, 1):
+            lines.append(f"### Group {i} (similarity: {group.similarity:.2f})")
+            lines.append(f"- **Canonical:** {group.canonical.text}")
+            for dup in group.duplicates:
+                lines.append(f"- Duplicate: {dup.text}")
+            lines.append("")
+
+    report_path.write_text("\n".join(lines), encoding="utf-8")
+    logger.info("  Report written to %s", report_path)
 
 
 def _blocked_response(result: AnalysisResult) -> JSONResponse:
