@@ -98,6 +98,7 @@ class BuiltinProxy:
         """Build and return the FastAPI application."""
         app = FastAPI(title="promptlint proxy")
         proxy = self
+        background_tasks: set[asyncio.Task[None]] = set()
 
         @app.api_route(
             "/{path:path}",
@@ -120,7 +121,9 @@ class BuiltinProxy:
                 except Exception:
                     logger.exception("Pipeline error for /%s", path)
 
-            asyncio.create_task(_bg_analyze())
+            task = asyncio.create_task(_bg_analyze())
+            background_tasks.add(task)
+            task.add_done_callback(background_tasks.discard)
 
             # Forward to target immediately (no waiting for analysis)
             return await _forward_request(request, body_bytes, path, proxy._target, proxy._timeout, None)

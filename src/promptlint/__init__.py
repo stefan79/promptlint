@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+import time
 from typing import Any
 
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
@@ -16,6 +18,8 @@ from promptlint.redundancy import RedundancyDetector
 from promptlint.scorer import score
 
 __all__ = ["AnalysisResult", "Config", "PromptAnalyzer", "PromptLintError"]
+
+logger = logging.getLogger("promptlint.pipeline")
 
 
 class PromptAnalyzer:
@@ -74,26 +78,43 @@ class PromptAnalyzer:
         if not chunks:
             return AnalysisResult()
 
+        logger.info("  [chunker]        %d chunks from input", len(chunks))
+
         # Stage 2: Classify
+        t0 = time.monotonic()
         classified = self.classifier.classify(chunks)
         instructions = [c for c in classified if c.label == "instruction"]
         non_instructions = [c for c in classified if c.label == "non_instruction"]
+        logger.info(
+            "  [classifier]     %d instructions, %d non-instructions (%.0fms)",
+            len(instructions),
+            len(non_instructions),
+            (time.monotonic() - t0) * 1000,
+        )
 
         if not instructions:
             return score(instructions, non_instructions, [], [], classified, original_text, self.config)
 
         # Stage 3: Embed
+        t0 = time.monotonic()
         embeddings = self.embedder.embed(instructions)
+        logger.info("  [embedder]       %d embeddings (%.0fms)", len(instructions), (time.monotonic() - t0) * 1000)
 
         # Stage 4: Redundancy detection
+        t0 = time.monotonic()
         redundancy_groups = self.redundancy_detector.detect(instructions, embeddings)
+        logger.info(
+            "  [redundancy]     %d groups found (%.0fms)", len(redundancy_groups), (time.monotonic() - t0) * 1000
+        )
 
         # Stage 5: Contradiction detection
-        contradictions = (
-            []
-            if skip_contradictions
-            else self.contradiction_detector.detect(instructions, embeddings, redundancy_groups)
-        )
+        if skip_contradictions:
+            contradictions = []
+            logger.info("  [contradiction]  SKIPPED")
+        else:
+            t0 = time.monotonic()
+            contradictions = self.contradiction_detector.detect(instructions, embeddings, redundancy_groups)
+            logger.info("  [contradiction]  %d found (%.0fms)", len(contradictions), (time.monotonic() - t0) * 1000)
 
         # Stage 6: Score
         return score(
